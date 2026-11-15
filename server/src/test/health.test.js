@@ -1,17 +1,17 @@
 const request = require("supertest");
-const { createApp } = require("./app");
+const { createApp } = require("../../dist/app");
 
 describe("GET /api/health", () => {
-  it("reports a healthy API when SQLite is available", async () => {
+  it("HEALTH-1 returns the status at the top level", async () => {
     const app = createApp({ db: { get: jest.fn() } });
 
     const response = await request(app).get("/api/health");
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ data: { status: "ok" } });
+    expect(response.body).toEqual({ status: "ok" });
   });
 
-  it("returns a safe service error when SQLite is unavailable", async () => {
+  it("HEALTH-2 returns a safe service error when SQLite is unavailable", async () => {
     const app = createApp({
       db: {
         get: () => {

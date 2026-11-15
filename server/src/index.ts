@@ -1,10 +1,9 @@
-const path = require("node:path");
-const dotenv = require("dotenv");
+import path from "node:path";
+import dotenv from "dotenv";
+import { createApp } from "./app";
+import { createDatabase } from "./db";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
-
-const { createApp } = require("./app");
-const { createDatabase } = require("./db");
 
 const port = Number(process.env.PORT || 3000);
 const databaseUrl = process.env.DATABASE_URL || "./data/store.sqlite";

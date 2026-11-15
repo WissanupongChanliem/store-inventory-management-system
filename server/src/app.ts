@@ -1,8 +1,17 @@
-const { randomUUID } = require("node:crypto");
-const express = require("express");
-const { sql } = require("drizzle-orm");
+import { randomUUID } from "node:crypto";
+import express from "express";
+import { sql } from "drizzle-orm";
+import type { AppDatabase } from "./db";
 
-function createApp({ db }) {
+declare global {
+  namespace Express {
+    interface Request {
+      requestId: string;
+    }
+  }
+}
+
+export function createApp({ db }: { db: AppDatabase }) {
   const app = express();
 
   app.use(express.json());
@@ -14,7 +23,7 @@ function createApp({ db }) {
   app.get("/api/health", (req, res) => {
     try {
       db.get(sql`SELECT 1`);
-      res.json({ data: { status: "ok" } });
+      res.json({ status: "ok" });
     } catch {
       res.status(503).json({
         error: {
@@ -28,5 +37,3 @@ function createApp({ db }) {
 
   return app;
 }
-
-module.exports = { createApp };
