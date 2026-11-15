@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="คู่มือ CRUD ด้วย Drizzle ORM, TypeScript และ SQLite">
+  <title>คู่มือ CRUD ด้วย Drizzle ORM</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #596579;
+      --line: #dce3ed;
+      --paper: #ffffff;
+      --canvas: #f3f6fb;
+      --accent: #176b58;
+      --accent-soft: #e8f5f0;
+      --code: #101827;
+      --code-ink: #e5edf8;
+      --note: #fff6df;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    a { color: var(--accent); }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    .tab-list {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      margin: 24px 0;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f5f8fb;
+      box-shadow: 0 6px 16px #1720331a;
+    }
+
+    .tab-button {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .tab-button[aria-selected="true"] {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .tab-button:focus-visible {
+      outline: 3px solid #8bb9ad;
+      outline-offset: 2px;
+    }
+
+    main {
+      min-width: 0;
+      padding: 36px 42px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: 0 12px 36px #2635500b;
+    }
+
+    .tab-panel { min-width: 0; }
+    .tab-panel:focus { outline: none; }
+    .tabs-ready [role="tabpanel"][hidden] { display: none; }
+
+    h1 { margin: 0 0 12px; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.2; }
+    h2 { margin: 44px 0 12px; padding-top: 20px; border-top: 1px solid var(--line); }
+    h3 { margin: 28px 0 8px; }
+    p, li { color: var(--muted); }
+    code { color: #125746; }
+
+    pre {
+      overflow-x: auto;
+      margin: 14px 0 20px;
+      padding: 18px;
+      border-radius: 12px;
+      background: var(--code);
+      color: var(--code-ink);
+      font: 0.9rem/1.6 Consolas, "Courier New", monospace;
+      tab-size: 2;
+    }
+
+    pre code { color: inherit; }
+
+    .lead { max-width: 70ch; font-size: 1.1rem; }
+    .eyebrow { color: var(--accent); font-weight: 700; letter-spacing: 0.06em; }
+
+    .callout {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid #d59b18;
+      border-radius: 8px;
+      background: var(--note);
+      color: #564619;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 22px 0;
+    }
+
+    .card {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfcfe;
+    }
+
+    .card b { display: block; color: var(--accent); }
+    .small { font-size: 0.92rem; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+      font-size: 0.95rem;
+    }
+
+    th, td { padding: 10px; border: 1px solid var(--line); text-align: left; }
+    th { background: #f5f8fb; }
+    td { color: var(--muted); }
+
+    @media (max-width: 820px) {
+      .page { display: block; padding: 14px; }
+      main { padding: 24px 18px; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main>
+      <div class="tab-list" role="tablist" aria-label="หัวข้อคู่มือ">
+        <button id="tab-basics" class="tab-button" type="button" role="tab"
+          aria-selected="true" aria-controls="panel-basics" tabindex="0">เริ่มต้น</button>
+        <button id="tab-crud" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-crud" tabindex="-1">CRUD</button>
+        <button id="tab-query" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-query" tabindex="-1">ค้นหาและ JOIN</button>
+        <button id="tab-transaction" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-transaction" tabindex="-1">Transaction และ Atomic update</button>
+        <button id="tab-reports" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-reports" tabindex="-1">รายงาน</button>
+        <button id="tab-upsert" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-upsert" tabindex="-1">Upsert</button>
+        <button id="tab-migrations" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-migrations" tabindex="-1">Migrations</button>
+        <button id="tab-reference" class="tab-button" type="button" role="tab"
+          aria-selected="false" aria-controls="panel-reference" tabindex="-1">ตัวอย่างและข้อควรจำ</button>
+      </div>
+
+      <section id="panel-basics" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-basics" tabindex="0">
+      <header id="intro">
+        <p class="eyebrow">คู่มือสำหรับ Backend TypeScript</p>
+        <h1>ทำ CRUD ด้วย Drizzle ORM</h1>
+        <p class="lead">
+          คู่มือนี้พาใช้ Drizzle ORM กับ TypeScript และ SQLite ตั้งแต่ประกาศ schema
+          จนถึงเพิ่ม อ่าน แก้ไข และลบสินค้า โดยใช้ตัวอย่างจากระบบจัดการร้านค้า
+        </p>
+        <div class="cards" aria-label="คำสั่ง CRUD">
+          <div class="card"><b>Create</b><code>db.insert()</code></div>
+          <div class="card"><b>Read</b><code>db.select()</code></div>
+          <div class="card"><b>Update</b><code>db.update()</code></div>
+          <div class="card"><b>Delete</b><code>db.delete()</code></div>
+        </div>
+        <p>
+          ตัวอย่างสมมติว่ามีตาราง <code>products</code> ที่เก็บชื่อสินค้า จำนวนคงเหลือ
+          และราคาเป็นสตางค์
+        </p>
+      </header>
+
+      <section id="schema">
+        <h2>Schema ทำให้ TypeScript รู้จักตาราง</h2>
+        <p>
+          กำหนดตารางและชนิดข้อมูลครั้งเดียว จากนั้น import ตารางและ type ที่อนุมานได้
+          ไปใช้ใน service หรือ route
+        </p>
+        <pre><code>import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const products = sqliteTable("products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  amount: integer("amount").notNull(),
+  priceSatang: integer("price_satang").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type Product = typeof products.$inferSelect;
+export type NewProduct = typeof products.$inferInsert;</code></pre>
+        <p>
+          <span class="tag">Product</span> คือข้อมูลที่อ่านจากฐานข้อมูล
+          ส่วน <span class="tag">NewProduct</span> คือข้อมูลสำหรับ insert
+          โดย TypeScript อนุมาน field ที่จำเป็นและชนิดข้อมูลจาก schema
+        </p>
+        <div class="callout">
+          Schema ใน Drizzle ให้ type และ query API แต่ไม่ได้สร้างตารางใน SQLite ให้อัตโนมัติ
+          ต้องสร้างตารางด้วย migration หรือ SQL ก่อนเรียก CRUD
+        </div>
+        <h3>เชื่อมต่อฐานข้อมูล</h3>
+        <pre><code>import { createDatabase } from "./db";
+
+const { db, close } = createDatabase("./data/store.sqlite");
+
+// ปิด connection เมื่อแอปกำลัง shutdown
+process.on("SIGTERM", () =&gt; {
+  close();
+});</code></pre>
+        <p class="small">
+          ในโปรเจกต์นี้ <code>createDatabase</code> ตั้งค่า Drizzle พร้อม schema
+          ให้แล้ว และ export ตารางกับ type จาก <code>server/src/db</code>
+        </p>
+      </section>
+
+      </section>
+
+      <section id="panel-crud" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-crud" tabindex="0">
+      <section id="create">
+        <h2>Create — เพิ่มข้อมูล</h2>
+        <p>ใช้ <code>insert().values()</code> ส่งเฉพาะ field ที่ต้องบันทึก</p>
+        <pre><code>import { products, type NewProduct } from "./db";
+
+export function createProduct(input: {
+  name: string;
+  amount: number;
+  priceSatang: number;
+}) {
+  const now = new Date().toISOString();
+  const values: NewProduct = {
+    name: input.name.trim(),
+    amount: input.amount,
+    priceSatang: input.priceSatang,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const product = db
+    .insert(products)
+    .values(values)
+    .returning()
+    .get();
+
+  if (!product) {
+    throw new Error("PRODUCT_CREATE_FAILED");
+  }
+  return product;
+}</code></pre>
+        <p>
+          <code>returning().get()</code> คืน row ที่เพิ่มแล้ว 1 รายการ
+          และตัวอย่างตรวจกรณีไม่มี row ที่คืนมาก่อนส่งผลลัพธ์กลับ
+        </p>
+        <div class="callout">
+          ตรวจ input ก่อนบันทึก เช่น name ต้องไม่ว่าง และ amount/priceSatang
+          ต้องเป็นจำนวนเต็มในช่วงที่ API กำหนด อย่ารับ <code>id</code> หรือราคาจาก client
+          โดยไม่ตรวจ
+        </div>
+      </section>
+
+      <section id="read">
+        <h2>Read — อ่านข้อมูล</h2>
+        <h3>อ่านสินค้าตาม ID</h3>
+        <pre><code>import { eq } from "drizzle-orm";
+import { products } from "./db";
+
+export function getProductById(id: number) {
+  return db
+    .select()
+    .from(products)
+    .where(eq(products.id, id))
+    .get();
+}
+
+const product = getProductById(1);
+if (!product) {
+  // ให้ route ตอบ 404 PRODUCT_NOT_FOUND
+}</code></pre>
+        <h3>อ่านรายการ เรียงลำดับ และแบ่งหน้า</h3>
+        <pre><code>import { asc } from "drizzle-orm";
+
+const items = db
+  .select()
+  .from(products)
+  .orderBy(asc(products.name), asc(products.id))
+  .limit(50)
+  .offset(0)
+  .all();</code></pre>
+        <h3>`.all()` ใช้ทำอะไร</h3>
+        <p>
+          สำหรับ SQLite driver ที่ใช้ <code>better-sqlite3</code>,
+          <code>.all()</code> จะรัน query แล้วคืนแถวผลลัพธ์ทั้งหมดเป็น array
+          โดยยังเคารพ <code>where</code>, <code>limit</code> และ <code>offset</code>
+          ถ้าไม่พบแถวจะได้ <code>[]</code> ไม่ใช่ <code>undefined</code>
+        </p>
+        <pre><code>const items = db.select().from(products).all();
+// items เป็น Product[]; ถ้าไม่มีสินค้า items จะเป็น []
+
+const firstItem = db
+  .select()
+  .from(products)
+  .where(eq(products.id, 1))
+  .get();
+// get() คืนแถวเดียว หรือ undefined ถ้าไม่พบ</code></pre>
+        <p class="small">
+          ใช้ <code>.all()</code> เมื่อต้องการรายการ ใช้ <code>.get()</code>
+          เมื่อต้องการแถวเดียว ส่วน <code>.run()</code> ใช้รันคำสั่งเปลี่ยนข้อมูล
+          โดยไม่คืนแถว (เช่น update/delete ที่ไม่มี <code>returning()</code>)
+        </p>
+        <h3>ค้นหาชื่อ</h3>
+        <pre><code>import { like } from "drizzle-orm";
+
+const search = "milk";
+const items = db
+  .select()
+  .from(products)
+  .where(like(products.name, `%${search}%`))
+  .orderBy(asc(products.name), asc(products.id))
+  .all();</code></pre>
+        <p class="small">
+          Drizzle bind ค่า query ให้ ไม่ต้องต่อ input ลงใน SQL string เอง
+          หากต้องการให้ `%` และ `_` เป็นตัวอักษรค้นหาตามจริง ให้ escape wildcard
+          ก่อนใช้ <code>like</code>
+        </p>
+      </section>
+
+      <section id="update">
+        <h2>Update — แก้ไขข้อมูล</h2>
+        <p>
+          ระบุ field ที่ต้องการแก้ใน <code>set()</code> และเลือกแถวด้วย
+          <code>where()</code> เสมอ
+        </p>
+        <pre><code>import { eq } from "drizzle-orm";
+import { products } from "./db";
+
+export function updateProductName(id: number, name: string) {
+  const [updated] = db
+    .update(products)
+    .set({
+      name: name.trim(),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(products.id, id))
+    .returning()
+    .all();
+
+  return updated;
+}</code></pre>
+        <p>
+          ถ้า <code>updated</code> เป็น <code>undefined</code> แปลว่าไม่พบ ID
+          นั้น ให้ route แปลงเป็น response <code>404 PRODUCT_NOT_FOUND</code>
+        </p>
+        <h3>แก้จำนวนคงเหลือและราคา</h3>
+        <pre><code>const [updated] = db
+  .update(products)
+  .set({
+    amount: 10,
+    priceSatang: 3000,
+    updatedAt: new Date().toISOString(),
+  })
+  .where(eq(products.id, 1))
+  .returning()
+  .all();</code></pre>
+      </section>
+
+      <section id="delete">
+        <h2>Delete — ลบข้อมูล</h2>
+        <pre><code>import { eq } from "drizzle-orm";
+import { products } from "./db";
+
+export function deleteProduct(id: number) {
+  const [deleted] = db
+    .delete(products)
+    .where(eq(products.id, id))
+    .returning()
+    .all();
+
+  return deleted;
+}
+
+const deleted = deleteProduct(1);
+if (!deleted) {
+  // ให้ route ตอบ 404 PRODUCT_NOT_FOUND
+} else {
+  // ให้ route ตอบ 204 โดยไม่มี response body
+}</code></pre>
+        <div class="callout">
+          การลบสินค้าในระบบนี้ต้องไม่ลบประวัติการขาย รายการขายเก็บชื่อสินค้าและราคา
+          เป็น snapshot และไม่ผูก productId ย้อนกลับไปยังตารางสินค้า
+        </div>
+      </section>
+
+      </section>
+
+      <section id="panel-query" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-query" tabindex="0">
+      <section id="operators">
+        <h2>Comparison operators — เงื่อนไขใน <code>where()</code></h2>
+        <p>
+          import operator จาก <code>drizzle-orm</code> แล้วส่งเงื่อนไขเข้า
+          <code>.where()</code> แทนการต่อข้อความ SQL ด้วยตัวเอง
+        </p>
+        <table>
+          <thead>
+            <tr><th>Operator</th><th>ความหมาย</th><th>ตัวอย่าง</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>eq(column, value)</code></td><td>เท่ากับ <code>=</code></td><td>รหัสเท่ากับ 5</td></tr>
+            <tr><td><code>ne(column, value)</code></td><td>ไม่เท่ากับ <code>&lt;&gt;</code></td><td>จำนวนไม่เท่ากับ 0</td></tr>
+            <tr><td><code>gt(column, value)</code></td><td>มากกว่า <code>&gt;</code></td><td>ราคามากกว่า 5000</td></tr>
+            <tr><td><code>gte(column, value)</code></td><td>มากกว่าหรือเท่ากับ <code>&gt;=</code></td><td>จำนวนอย่างน้อย 1</td></tr>
+            <tr><td><code>lt(column, value)</code></td><td>น้อยกว่า <code>&lt;</code></td><td>ราคาน้อยกว่า 5000</td></tr>
+            <tr><td><code>lte(column, value)</code></td><td>น้อยกว่าหรือเท่ากับ <code>&lt;=</code></td><td>ราคาสูงสุด 5000</td></tr>
+            <tr><td><code>between(column, min, max)</code></td><td>อยู่ในช่วง รวมค่าขอบทั้งสองด้าน</td><td>ราคา 1000 ถึง 5000</td></tr>
+            <tr><td><code>notBetween(column, min, max)</code></td><td>อยู่นอกช่วง</td><td>ราคาไม่อยู่ระหว่าง 1000 ถึง 5000</td></tr>
+            <tr><td><code>inArray(column, values)</code></td><td>ค่าอยู่ในรายการ <code>IN</code></td><td>ID อยู่ในรายการที่เลือก</td></tr>
+            <tr><td><code>notInArray(column, values)</code></td><td>ค่าไม่อยู่ในรายการ <code>NOT IN</code></td><td>ID ไม่อยู่ในรายการที่ยกเว้น</td></tr>
+            <tr><td><code>like(column, pattern)</code></td><td>ตรงกับรูปแบบข้อความ <code>LIKE</code></td><td>ชื่อมีคำว่า milk</td></tr>
+            <tr><td><code>notLike(column, pattern)</code></td><td>ไม่ตรงกับรูปแบบข้อความ</td><td>ชื่อไม่ตรงกับรูปแบบที่กำหนด</td></tr>
+            <tr><td><code>isNull(column)</code></td><td>ค่าเป็น <code>NULL</code></td><td>คอลัมน์ที่ยังไม่มีค่า</td></tr>
+            <tr><td><code>isNotNull(column)</code></td><td>ค่าไม่เป็น <code>NULL</code></td><td>คอลัมน์ที่มีค่าแล้ว</td></tr>
+          </tbody>
+        </table>
+        <p>
+          ใช้ <code>and()</code>, <code>or()</code> และ <code>not()</code>
+          เพื่อรวม/กลับเงื่อนไข และใช้ <code>isNull()</code> แทนการเปรียบเทียบ
+          <code>NULL</code> ด้วย <code>eq()</code>
+        </p>
+        <pre><code>import { and, eq, gt, like, lte, or } from "drizzle-orm";
+
+const items = db
+  .select()
+  .from(products)
+  .where(
+    and(
+      gt(products.amount, 0),
+      lte(products.priceSatang, 5000),
+      or(
+        like(products.name, "%milk%"),
+        eq(products.id, 10),
+      ),
+    ),
+  )
+  .all();</code></pre>
+        <p>ตัวอย่างช่วงราคาและรายการ ID:</p>
+        <pre><code>import { between, inArray } from "drizzle-orm";
+
+const priceRange = db
+  .select()
+  .from(products)
+  .where(between(products.priceSatang, 1000, 5000))
+  .all();
+
+const selected = db
+  .select()
+  .from(products)
+  .where(inArray(products.id, [2, 5, 10]))
+  .all();</code></pre>
+        <p class="small">
+          <code>LIKE</code> ใช้ wildcard <code>%</code> แทนข้อความกี่ตัวก็ได้ และ
+          <code>_</code> แทนหนึ่งตัวอักษร ส่วน <code>between</code>
+          รวมค่าขอบเขตต้นและปลายด้วย
+        </p>
+      </section>
+
+      <section id="joins">
+        <h2>JOIN — อ่านข้อมูลจากหลายตาราง</h2>
+        <p>
+          ใช้ <code>.innerJoin()</code> เมื่ออยากได้เฉพาะแถวที่มีข้อมูลจับคู่กัน
+          และ <code>.leftJoin()</code> เมื่อต้องการเก็บแถวจากตารางหลักไว้
+          แม้ไม่มีข้อมูลจับคู่ ใช้ <code>eq()</code> ระบุคอลัมน์ที่สัมพันธ์กัน
+        </p>
+        <h3>ตัวอย่าง: รายการขายพร้อมรายการสินค้า</h3>
+        <pre><code>import { eq } from "drizzle-orm";
+import { saleItems, sales } from "./db";
+
+const rows = db
+  .select({
+    saleId: sales.id,
+    createdAt: sales.createdAt,
+    itemName: saleItems.name,
+    quantity: saleItems.quantity,
+    lineTotalSatang: saleItems.lineTotalSatang,
+  })
+  .from(sales)
+  .innerJoin(saleItems, eq(sales.id, saleItems.saleId))
+  .where(eq(sales.id, 12))
+  .all();</code></pre>
+        <p>
+          ผลลัพธ์เป็น array ของ object ที่เลือกไว้ แต่ละรายการขายจะปรากฏซ้ำตามจำนวน
+          sale item ที่จับคู่ได้ ตัวอย่างนี้เลือกเฉพาะบางคอลัมน์ แทนการคืนทั้งแถวของสองตาราง
+        </p>
+        <h3>ใช้ LEFT JOIN เพื่อเก็บแถวจากตารางหลัก</h3>
+        <pre><code>const rows = db
+  .select({
+    saleId: sales.id,
+    itemName: saleItems.name,
+  })
+  .from(sales)
+  .leftJoin(saleItems, eq(sales.id, saleItems.saleId))
+  .all();
+
+// ถ้า sale ไม่มี saleItem, itemName จะเป็น null</code></pre>
+        <div class="callout">
+          ใน schema นี้ <code>saleItems</code> เก็บชื่อและราคาขายเป็น snapshot
+          และ <code>productId</code> ไม่ได้เป็น foreign key ไปยัง <code>products</code>.
+          สำหรับประวัติการขาย ให้ใช้ค่าจาก snapshot เพื่อไม่ให้การลบหรือแก้ไขสินค้า
+          เปลี่ยนข้อมูลการขายย้อนหลัง
+        </div>
+        <p class="small">
+          Drizzle ยังมี join รูปแบบอื่นตาม dialect และเวอร์ชันฐานข้อมูล เช่น
+          <code>rightJoin()</code> และ <code>fullJoin()</code>; สำหรับ SQLite
+          ตัวอย่างนี้ใช้ <code>innerJoin()</code> และ <code>leftJoin()</code>
+          เพื่อให้เข้ากันได้กว้างกว่า
+        </p>
+      </section>
+
+      <section id="relations">
+        <h3>Relational queries — อ่านข้อมูลตาม relations ที่ประกาศไว้</h3>
+        <p>
+          เมื่อ Drizzle ถูกสร้างพร้อม schema และประกาศ relation แล้ว ใช้
+          <code>db.query</code> อ่านข้อมูลแบบ nested ได้ โปรเจกต์นี้ประกาศ relation
+          ระหว่าง sales กับ saleItems ไว้
+        </p>
+        <pre><code>import { eq } from "drizzle-orm";
+import { sales } from "./db";
+
+const sale = db.query.sales.findFirst({
+  where: eq(sales.id, 12),
+  with: { items: true },
+});
+
+// sale มีข้อมูล sale และ items เป็น array;
+// ถ้าไม่พบ sale จะได้ undefined</code></pre>
+        <p class="small">
+          relational query เหมาะกับข้อมูลที่ต้องการ object ซ้อนกัน ส่วน explicit
+          <code>innerJoin()</code>/<code>leftJoin()</code> เหมาะเมื่ออยากเลือกคอลัมน์
+          หรือจัดรูปผลลัพธ์เอง
+        </p>
+      </section>
+
+      </section>
+
+      <section id="panel-transaction" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-transaction" tabindex="0">
+      <section id="transaction">
+        <h2>Transaction — ทำหลายคำสั่งให้สำเร็จหรือล้มเหลวพร้อมกัน</h2>
+        <p>
+          สมมติว่ามีตาราง <code>accounts(id, name)</code> และ
+          <code>accountSettings(accountId, theme)</code> ต้องสร้างบัญชีและค่าตั้งต้นให้สำเร็จพร้อมกัน
+        </p>
+        <pre><code>import { accounts, accountSettings } from "./db";
+
+const account = db.transaction((tx) =&gt; {
+  const created = tx
+    .insert(accounts)
+    .values({ name: "Ada" })
+    .returning()
+    .get();
+
+  if (!created) throw new Error("ACCOUNT_CREATE_FAILED");
+
+  tx.insert(accountSettings)
+    .values({ accountId: created.id, theme: "dark" })
+    .run();
+
+  return created;
+});</code></pre>
+        <p class="small">
+          ถ้าการ insert ค่าตั้งค่าล้มเหลว การสร้างบัญชีก็ rollback ไปด้วย
+        </p>
+      </section>
+
+      <section id="atomic-update">
+        <h3>Atomic update — เพิ่มตัวนับในคำสั่งเดียว</h3>
+        <p>
+          สมมติว่ามีตาราง <code>counters(id, value)</code>.
+        </p>
+        <p><strong>ไม่ควร: อ่านค่ามาคำนวณ แล้วเขียนกลับแยกอีกคำสั่ง</strong></p>
+        <pre><code>import { eq } from "drizzle-orm";
+import { counters } from "./db";
+
+const current = db
+  .select({ value: counters.value })
+  .from(counters)
+  .where(eq(counters.id, 1))
+  .get();
+
+if (!current) throw new Error("COUNTER_NOT_FOUND");
+
+db.update(counters)
+  .set({ value: current.value + 1 })
+  .where(eq(counters.id, 1))
+  .run();</code></pre>
+        <p class="small">
+          ถ้าสอง request อ่านค่าเดิมพร้อมกัน ทั้งคู่อาจเขียนค่าเดิมบวกหนึ่งกลับไป
+          ทำให้การเพิ่มหนึ่งครั้งหายไป (lost update)
+        </p>
+        <p><strong>แนะนำ: ให้ฐานข้อมูลคำนวณใน UPDATE เดียว</strong></p>
+        <pre><code>import { eq, sql } from "drizzle-orm";
+import { counters } from "./db";
+
+const step = 1;
+const updated = db
+  .update(counters)
+  .set({ value: sql`${counters.value} + ${step}` })
+  .where(eq(counters.id, 1))
+  .returning({ value: counters.value })
+  .get();
+
+if (!updated) throw new Error("COUNTER_NOT_FOUND");</code></pre>
+        <h3><code>sql``</code> ทำหน้าที่อะไร</h3>
+        <p>
+          <code>sql</code> เป็น tagged template ของ Drizzle สำหรับเขียน SQL expression
+          ที่นำไปประกอบกับ query ได้ ตัวอย่างนี้ให้ฐานข้อมูลคำนวณค่าเพิ่มใน update เดียว
+          แทนการอ่านค่าเดิมมาก่อน
+        </p>
+        <pre><code>value: sql`${counters.value} + ${step}`</code></pre>
+        <ul>
+          <li><code>${counters.value}</code> เป็นการอ้างถึงคอลัมน์จริงในตาราง</li>
+          <li><code>${step}</code> เป็นค่าที่ Drizzle bind เป็น parameter ไม่ได้ต่อเป็น SQL string</li>
+          <li>ส่วน <code>+</code> คือ operator SQL ที่อยู่ใน expression</li>
+        </ul>
+        <p class="small">
+          ใช้ <code>sql``</code> เมื่อ query builder ทั่วไปไม่พอ เช่นคำนวณในคอลัมน์,
+          ฟังก์ชัน SQL หรือ expression เฉพาะฐานข้อมูล อย่านำ input จากผู้ใช้ไปต่อเป็น
+          SQL text เอง และไม่ใช้ <code>sql.raw()</code> กับข้อมูลที่ไม่น่าเชื่อถือ
+        </p>
+        <p class="small">
+          ตัวอย่างนี้เป็นคำสั่งเดียว จึงไม่มีช่วงอ่านค่าแล้วเขียนทับจากค่าที่ล้าสมัย
+          หากต้องทำหลายการเปลี่ยนแปลงให้สำเร็จพร้อมกัน ให้ครอบด้วย transaction
+        </p>
+      </section>
+
+      </section>
+
+      <section id="panel-reports" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-reports" tabindex="0">
+      <section id="reports">
+        <h2>รายงานยอดขายและสรุปข้อมูล</h2>
+        <p>
+          ใช้ <code>count()</code>, <code>sum()</code>, <code>groupBy()</code> และ
+          <code>having()</code> รวมรายการขายแยกตามสินค้า:
+        </p>
+        <pre><code>import { count, gt, sum } from "drizzle-orm";
+import { saleItems } from "./db";
+
+const report = db
+  .select({
+    itemName: saleItems.name,
+    itemLines: count(),
+    unitsSold: sum(saleItems.quantity),
+    revenueSatang: sum(saleItems.lineTotalSatang),
+  })
+  .from(saleItems)
+  .groupBy(saleItems.name)
+  .having(gt(sum(saleItems.quantity), 10))
+  .all();</code></pre>
+        <p>
+          <code>groupBy()</code> รวมแถวตามคอลัมน์ที่ระบุ ส่วน <code>having()</code>
+          กรองผลหลังการรวมกลุ่ม ค่า <code>sum()</code> อาจเป็น <code>null</code>
+          เมื่อไม่มีข้อมูล ควรจัดการกรณีนี้ก่อนคำนวณยอดต่อ
+        </p>
+        <p class="small">
+          รายงานยอดขายรายวันควรคำนวณเวลาเริ่มและสิ้นสุดของวันตาม timezone ที่ API กำหนด
+          แล้วกรองช่วงแบบรวมเวลาเริ่มแต่ไม่รวมเวลาสิ้นสุด (<code>[start, end)</code>)
+          ก่อนนำ <code>count()</code> และ <code>sum(sales.totalSatang)</code>
+          มาคำนวณ
+        </p>
+      </section>
+      </section>
+
+      <section id="panel-upsert" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-upsert" tabindex="0">
+      <section id="upsert">
+        <h2>Upsert — จัดการข้อมูลเมื่อชน unique key</h2>
+        <p>ตาราง users มี unique username จึงใช้เป็น conflict target ได้:</p>
+        <pre><code>import { users } from "./db";
+
+// สร้าง hash ด้วย bcrypt ก่อนเรียก query
+db.insert(users)
+  .values({
+    username: "staff",
+    passwordHash: bcryptHash,
+    createdAt: new Date().toISOString(),
+  })
+  .onConflictDoNothing({ target: users.username })
+  .run();</code></pre>
+        <p>ถ้ากฎของงานต้องการแทนค่าที่มีอยู่จริง ๆ ใช้ <code>onConflictDoUpdate()</code>:</p>
+        <pre><code>db.insert(users)
+  .values({
+    username,
+    passwordHash,
+    createdAt: new Date().toISOString(),
+  })
+  .onConflictDoUpdate({
+    target: users.username,
+    set: { passwordHash },
+  })
+  .run();</code></pre>
+        <div class="callout">
+          ใช้ <code>onConflictDoUpdate()</code> เฉพาะเมื่อการเขียนทับเป็นกฎธุรกิจที่ตั้งใจ
+          เช่นซิงก์ข้อมูลจากแหล่งที่เชื่อถือได้ ไม่ควรใช้กับสมัครสมาชิกทั่วไปที่ควรแจ้ง
+          username ซ้ำ และ passwordHash ต้องเป็น bcrypt hash ก่อนบันทึก
+        </div>
+      </section>
+      </section>
+
+      <section id="panel-migrations" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-migrations" tabindex="0">
+      <section id="migrations">
+        <h2>Migrations — จัดการการเปลี่ยน schema</h2>
+        <p>
+          migration แยกการเปลี่ยนโครงสร้างตารางออกจากการรันแอป ช่วยให้ทีมตรวจสอบ
+          และนำ schema version เดียวกันไปใช้ในแต่ละ environment ได้
+        </p>
+        <p>ตัวอย่างไฟล์ <code>server/drizzle.config.ts</code>:</p>
+        <pre><code>import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./src/db/schema.ts",
+  out: "./drizzle",
+  dialect: "sqlite",
+  dbCredentials: {
+    url: "./data/store.sqlite",
+  },
+});</code></pre>
+        <p>หลังติดตั้ง drizzle-kit และสร้าง config แล้ว รันจากโฟลเดอร์ <code>server</code>:</p>
+        <pre><code>npm install --save-dev drizzle-kit
+npx drizzle-kit generate
+npx drizzle-kit migrate
+
+# ใช้ push เพื่อทดลองใน development เท่านั้น
+npx drizzle-kit push</code></pre>
+        <div class="callout">
+          ขณะเขียนคู่มือนี้ <code>server/package.json</code> ยังไม่มี drizzle-kit
+          และยังไม่มี <code>drizzle.config.ts</code> ดังนั้นคำสั่งข้างต้นเป็นขั้นตอนสำหรับ
+          ตั้งค่าเพิ่ม ไม่ใช่สคริปต์ที่รันได้ทันทีใน repository นี้
+        </div>
+      </section>
+      </section>
+
+      <section id="panel-reference" class="tab-panel" role="tabpanel"
+        aria-labelledby="tab-reference" tabindex="0">
+      <section id="use-case">
+        <h2>Use case: เพิ่มสินค้าแล้วอ่านกลับ</h2>
+        <p>ลำดับการทำงานแบบ service สั้น ๆ:</p>
+        <ol>
+          <li>ตรวจ request body ที่ route หรือ validation layer</li>
+          <li>เรียก service เพื่อ insert ข้อมูล</li>
+          <li>ใช้ row ที่ Drizzle คืนมาเป็น response</li>
+          <li>ถ้าอ่านหรือแก้ไขไม่พบ row ให้ตอบ 404 ตาม API spec</li>
+        </ol>
+        <pre><code>const product = createProduct({
+  name: "Milk 1L",
+  amount: 24,
+  priceSatang: 2500,
+});
+
+const loaded = getProductById(product.id);
+console.log(loaded?.name); // "Milk 1L"</code></pre>
+        <table>
+          <thead>
+            <tr><th>งาน</th><th>Drizzle pattern</th><th>กรณีร้านค้า</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>เพิ่ม</td><td><code>insert().values()</code></td><td>สร้างสินค้าใหม่</td></tr>
+            <tr><td>อ่าน</td><td><code>select().from().where()</code></td><td>ค้นหาสินค้าด้วย ID</td></tr>
+            <tr><td>แก้</td><td><code>update().set().where()</code></td><td>ปรับชื่อ ราคา หรือจำนวน</td></tr>
+            <tr><td>ลบ</td><td><code>delete().where()</code></td><td>ลบสินค้าที่ไม่มีสต็อก/ไม่ต้องใช้</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="tips">
+        <h2>ข้อควรจำ</h2>
+        <ul>
+          <li>ใช้ <code>eq()</code>, <code>and()</code> และ expression ของ Drizzle ในเงื่อนไข ไม่ต่อ input เป็น SQL string</li>
+          <li>ใช้ <code>NewProduct</code> และ <code>Product</code> จาก schema เพื่อให้ TypeScript ช่วยตรวจ field</li>
+          <li>การมี schema ใน TypeScript ไม่ได้แปลว่าตารางใน SQLite ถูกสร้างแล้ว ต้องใช้ migration/SQL</li>
+          <li>ตรวจว่าคำสั่ง update/delete กระทบ row ที่ต้องการจริง และแปลงกรณีไม่พบเป็น 404</li>
+          <li>ใช้ transaction เมื่อการทำงานหลายคำสั่งต้องคงความถูกต้องของสต็อกและยอดขาย</li>
+          <li>เก็บเงินเป็นจำนวนเต็มหน่วยสตางค์ เช่น <code>2500</code> แทนการใช้เลขทศนิยมเป็นบาท</li>
+        </ul>
+      </section>
+      </section>
+
+      <footer>
+        <p class="small">ตัวอย่างนี้อิง TypeScript, Drizzle ORM และ SQLite ผ่าน better-sqlite3</p>
+      </footer>
+    </main>
+  </div>
+  <script>
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+
+    function activateTab(selectedTab, moveFocus) {
+      tabs.forEach((tab) => {
+        const selected = tab === selectedTab;
+        const panel = document.getElementById(tab.getAttribute("aria-controls"));
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        panel.hidden = !selected;
+      });
+
+      if (moveFocus) {
+        selectedTab.focus();
+      }
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => activateTab(tab, false));
+      tab.addEventListener("keydown", (event) => {
+        let nextIndex;
+        if (event.key === "ArrowRight") {
+          nextIndex = (index + 1) % tabs.length;
+        } else if (event.key === "ArrowLeft") {
+          nextIndex = (index - 1 + tabs.length) % tabs.length;
+        } else if (event.key === "Home") {
+          nextIndex = 0;
+        } else if (event.key === "End") {
+          nextIndex = tabs.length - 1;
+        }
+
+        if (nextIndex !== undefined) {
+          event.preventDefault();
+          activateTab(tabs[nextIndex], true);
+        }
+      });
+    });
+
+    const initialTab = tabs.find((tab) => tab.getAttribute("aria-selected") === "true") || tabs[0];
+    activateTab(initialTab, false);
+    document.documentElement.classList.add("tabs-ready");
+  </script>
+</body>
+</html>
