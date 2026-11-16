@@ -6,12 +6,8 @@
   import Products from "./lib/Products.svelte";
   import Sidebar from "./lib/Sidebar.svelte";
   import Checkout from "./lib/Checkout.svelte";
-
-  // หน้าที่ยังไม่ได้ทำ แสดงเป็นหน้าชั่วคราว
-  const comingSoon = {
-    "/sales": "ยอดขายรายวัน",
-    "/account": "บัญชีของฉัน",
-  };
+  import Sales from "./lib/Sales.svelte";
+  import Account from "./lib/Account.svelte";
 
   let user = $state(null);
   let checking = $state(true);
@@ -60,12 +56,10 @@
         <Products />
       {:else if router.path === "/checkout"}
         <Checkout />
-
-      {:else if comingSoon[router.path]}
-        <section class="placeholder">
-          <h2>{comingSoon[router.path]}</h2>
-          <p>หน้านี้ยังไม่พร้อมใช้งาน</p>
-        </section>
+      {:else if router.path === "/sales"}
+        <Sales />
+      {:else if router.path === "/account"}
+        <Account {user} onlogout={logout} />
       {:else if router.path !== "/" && router.path !== "/login"}
         <section class="placeholder">
           <h2>ไม่พบหน้านี้</h2>
