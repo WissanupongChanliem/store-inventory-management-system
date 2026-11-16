@@ -6,10 +6,10 @@
   import Products from "./lib/Products.svelte";
   import Sidebar from "./lib/Sidebar.svelte";
   import Checkout from "./lib/Checkout.svelte";
+  import Sales from "./lib/Sales.svelte";
 
   // หน้าที่ยังไม่ได้ทำ แสดงเป็นหน้าชั่วคราว
   const comingSoon = {
-    "/sales": "ยอดขายรายวัน",
     "/account": "บัญชีของฉัน",
   };
 
@@ -60,7 +60,8 @@
         <Products />
       {:else if router.path === "/checkout"}
         <Checkout />
-
+      {:else if router.path === "/sales"}
+        <Sales />
       {:else if comingSoon[router.path]}
         <section class="placeholder">
           <h2>{comingSoon[router.path]}</h2>

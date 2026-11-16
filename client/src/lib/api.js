@@ -43,14 +43,16 @@ const realApi = {
     createProduct: (data) => request('POST', '/api/products', data),
     updateProduct: (id, data) => request('PATCH', `/api/products/${id}`, data),
     deleteProduct: (id) => request('DELETE', `/api/products/${id}`),
-    checkout: (items) => request('POST', '/api/checkout', { items })
+    checkout: (items) => request('POST', '/api/checkout', { items }),
+    listSales: ({ date } = {}) =>
+        request('GET', date ? `/api/sales?date=${encodeURIComponent(date)}` : '/api/sales')
 }
 
 // ---------- ข้อมูลจำลอง: ทำงานในหน่วยความจำ รีเฟรชหน้าแล้วรีเซ็ต ----------
 const now = new Date().toISOString()
 let loggedIn = true
 let nextId = 6
-let nextSaleId = 1
+
 let products = [
     { id: 1, name: 'น้ำดื่ม 600 มล.', amount: 120, priceSatang: 700 },
     { id: 2, name: 'Milk 1L', amount: 24, priceSatang: 2500 },
@@ -99,6 +101,68 @@ function assertUniqueName(name, exceptId) {
         throw new ApiError(409, 'PRODUCT_NAME_EXISTS', 'ชื่อสินค้านี้มีอยู่แล้ว')
     }
 }
+// ---------- ข้อมูลการขายจำลอง ----------
+const STORE_TZ = 'Asia/Bangkok'
+
+function storeDate(date = new Date()) {
+    return new Date(date).toLocaleDateString('en-CA', { timeZone: STORE_TZ }) // YYYY-MM-DD
+}
+
+function atStoreTime(day, time) {
+    return new Date(`${day}T${time}:00+07:00`).toISOString()
+}
+
+function isValidDay(day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false
+    const d = new Date(`${day}T00:00:00Z`)
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day
+}
+
+function seedSale(id, day, time, lines) {
+    const items = lines.map(([productId, name, unitPriceSatang, quantity]) => ({
+        productId,
+        name,
+        unitPriceSatang,
+        quantity,
+        lineTotalSatang: unitPriceSatang * quantity
+    }))
+    return {
+        id,
+        items,
+        totalSatang: items.reduce((sum, i) => sum + i.lineTotalSatang, 0),
+        createdAt: atStoreTime(day, time)
+    }
+}
+
+const today = storeDate()
+const yesterday = storeDate(new Date(Date.now() - 86400000))
+
+let sales = [
+    seedSale(1, yesterday, '10:20', [
+        [1001, 'น้ำดื่ม 600 มล.', 1000, 3],
+        [1005, 'บะหมี่กึ่งสำเร็จรูป', 700, 2]
+    ]),
+    seedSale(2, yesterday, '16:45', [[1004, 'กาแฟกระป๋อง', 2000, 2]]),
+    seedSale(3, today, '09:06', [
+        [1001, 'น้ำดื่ม 600 มล.', 1000, 2],
+        [1002, 'นมสดรสจืด 250 มล.', 2500, 1]
+    ]),
+    seedSale(4, today, '11:48', [
+        [1003, 'ขนมปังโฮลวีต', 3500, 1],
+        [1002, 'นมสดรสจืด 250 มล.', 2500, 1],
+        [1001, 'น้ำดื่ม 600 มล.', 1000, 1]
+    ]),
+    seedSale(5, today, '13:15', [
+        [1004, 'กาแฟกระป๋อง', 2000, 2],
+        [1006, 'มันฝรั่งทอด', 2000, 2]
+    ]),
+    seedSale(6, today, '14:32', [
+        [1001, 'น้ำดื่ม 600 มล.', 1000, 2],
+        [1002, 'นมสดรสจืด 250 มล.', 2500, 2],
+        [1003, 'ขนมปังโฮลวีต', 3500, 1]
+    ])
+]
+let nextSaleId = 7
 
 const mockApi = {
     async me() {
@@ -203,6 +267,8 @@ const mockApi = {
             seen.add(item.productId)
         })
 
+
+
         const lines = items.map((item) => {
             const product = products.find((p) => p.id === item.productId)
             if (!product) throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'ไม่พบสินค้า')
@@ -235,13 +301,32 @@ const mockApi = {
             }
         })
 
+        const sale = {
+            id: nextSaleId++,
+            items: saleItems,
+            totalSatang: saleItems.reduce((sum, i) => sum + i.lineTotalSatang, 0),
+            createdAt: stamp
+        }
+        sales.push(sale)
+        return { sale: copy(sale) }
+    },
+    async listSales({ date } = {}) {
+        await wait()
+        const day = date ?? storeDate()
+        if (!isValidDay(day)) {
+            throw new ApiError(400, 'BAD_REQUEST', 'รูปแบบวันที่ไม่ถูกต้อง')
+        }
+        const items = sales
+            .filter((s) => storeDate(s.createdAt) === day)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id) // ใหม่ไปเก่า
         return {
-            sale: {
-                id: nextSaleId++,
-                items: saleItems,
-                totalSatang: saleItems.reduce((sum, i) => sum + i.lineTotalSatang, 0),
-                createdAt: stamp
-            }
+            date: day,
+            timezone: STORE_TZ,
+            summary: {
+                saleCount: items.length,
+                totalSatang: items.reduce((sum, s) => sum + s.totalSatang, 0)
+            },
+            items: copy(items)
         }
     }
 }
