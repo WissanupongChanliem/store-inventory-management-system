@@ -1,11 +1,12 @@
 <script>
+    import { api, ApiError } from "./api.js";
     let { onlogin } = $props();
 
     let username = $state("");
     let password = $state("");
     let error = $state("");
     let loading = $state(false);
-    let showPassword = $state(false)
+    let showPassword = $state(false);
 
     async function handleSubmit(event) {
         event.preventDefault();
@@ -13,27 +14,18 @@
         loading = true;
 
         try {
-            const res = await fetch("/api/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-            });
-
-            if (res.ok) {
-                const json = await res.json();
-                onlogin(json.user);
-                return;
-            }
-
-            if (res.status === 401) {
+            const json = await api.login(username, password);
+            onlogin(json.user);
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 401) {
                 error = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
-            } else if (res.status === 422) {
+            } else if (e instanceof ApiError && e.status === 422) {
                 error = "กรุณากรอกชื่อผู้ใช้และรหัสผ่านให้ครบ";
-            } else {
+            } else if (e instanceof ApiError) {
                 error = "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+            } else {
+                error = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
             }
-        } catch {
-            error = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
         } finally {
             loading = false;
         }
