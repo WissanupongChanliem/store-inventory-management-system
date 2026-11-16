@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import { sql } from "drizzle-orm";
 import type { AppDatabase } from "./db";
+import { malformedJsonHandler } from "./middleware/malformed-json";
 
 declare global {
   namespace Express {
@@ -14,11 +15,11 @@ declare global {
 export function createApp({ db }: { db: AppDatabase }) {
   const app = express();
 
-  app.use(express.json());
   app.use((req, res, next) => {
     req.requestId = randomUUID();
     next();
   });
+  app.use(express.json());
 
   app.get("/api/health", (req, res) => {
     try {
@@ -34,6 +35,8 @@ export function createApp({ db }: { db: AppDatabase }) {
       });
     }
   });
+
+  app.use(malformedJsonHandler);
 
   return app;
 }
