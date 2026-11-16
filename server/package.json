@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
+    "seed": "tsx src/db/seed.ts",
     "test": "npm run build && jest --runInBand",
     "test:auth": "npm run build && jest --runInBand --runTestsByPath dist/test/auth.test.js",
     "test:products": "npm run build && jest --runInBand --runTestsByPath dist/test/products.test.js",

@@ -46,7 +46,9 @@
 Cookie ใช้เก็บ **เฉพาะ session token แบบสุ่มและคาดเดายาก** ไม่เก็บข้อมูลผู้ใช้โดยตรง
 
 - ชื่อ cookie ที่แนะนำ: `sid`
-- ค่า cookie: opaque token ที่สร้างจาก secure random generator (อย่างน้อย 32 bytes) ไม่ใช่ JSON หรือ JWT
+- สร้าง session ID ด้วย `randomBytes(32).toString("base64url")` ให้ได้ random 32 bytes; ใช้ค่าที่ได้เป็น opaque token ใน cookie `sid`
+- ก่อนบันทึกลง `sessions.token_hash` ให้ hash session ID ด้วย SHA-256 แล้วเข้ารหัสผลลัพธ์เป็น hexadecimal; ใช้วิธีเดียวกันเมื่อตรวจ session
+- ค่า cookie เป็น opaque token ไม่ใช่ JSON หรือ JWT
 - ห้ามใส่ username, password, password hash, user ID, role หรือข้อมูลโปรไฟล์ลงใน cookie
 - ตั้งค่า `HttpOnly`, `SameSite=Lax`, `Path=/` และตั้ง `Secure` เมื่อใช้ HTTPS
 - ไม่ส่ง token กลับมาใน JSON response และไม่เขียน token ลง log
@@ -137,15 +139,136 @@ Set-Cookie: sid=<opaque-random-token>; Path=/; HttpOnly; SameSite=Lax; Secure
 
 ## 3. การตรวจสอบร่วมสำหรับทุก endpoint
 
-ตัวอย่าง Response ในตารางใช้ `...` แทนข้อความหรือข้อมูลที่ขึ้นกับ runtime; `details` มีเฉพาะ `VALIDATION_ERROR` และ `INSUFFICIENT_STOCK` ตามกรณี
+ก่อนทดสอบ ให้เตรียมฐานข้อมูลและข้อมูลทดสอบขั้นต่ำที่ endpoint ต้องใช้ แล้วเข้าสู่ระบบเพื่อรับ session สำหรับ endpoint ที่ต้องยืนยันตัวตน ตัวอย่าง Response ใช้ `...` แทนข้อความหรือข้อมูลที่ขึ้นกับ runtime; `details` ใช้กับ `VALIDATION_ERROR` และ `INSUFFICIENT_STOCK` ตามกรณี
 
 | ID | กรณีทดสอบ | ผลที่คาดหวัง | Response ที่คาดหวัง |
 |---|---|---|---|
-| G1 | ไม่มี cookie, cookie ปลอม หรือใช้ cookie หลัง logout (ทุก endpoint ยกเว้น login; logout ที่ไม่มี session ใช้กรณี LOGOUT-3) | `401 UNAUTHENTICATED` | `401 {"error":{"code":"UNAUTHENTICATED","message":"..."}}` |
+| G1 | เรียก endpoint ที่ต้องยืนยันตัวตนโดยไม่มี session, ใช้ cookie ปลอม หรือใช้ cookie เดิมหลัง logout (logout โดยไม่มี session ใช้กรณี LOGOUT-3) | `401 UNAUTHENTICATED`; logout โดยไม่มี session ตอบตาม LOGOUT-3 | `401 {"error":{"code":"UNAUTHENTICATED","message":"..."}}` |
 | G2 | path ID เป็น `abc`, `0`, `-1` หรือ `1.5` | `400 BAD_REQUEST` | `400 {"error":{"code":"BAD_REQUEST","message":"..."}}` |
 | G3 | body เป็น JSON เสียรูป | `400 BAD_REQUEST` | `400 {"error":{"code":"BAD_REQUEST","message":"..."}}` |
-| G4 | ทุก error response | มี `error.code` และ `error.message`; ไม่มี stack trace, SQL หรือ password hash | `{"error":{"code":"...","message":"..."}}`; เพิ่ม `details` เฉพาะ error code ที่กำหนด |
-| G5 | ทุก response สถานะ `2xx` ยกเว้น `204` | field ของ endpoint อยู่ระดับบนสุดและไม่มี property ชื่อ `data` | ตัวอย่าง: `200 {"user":{"id":1,"username":"owner"}}`; ห้ามห่อด้วย `{"data":...}`; `204` ไม่มี body |
+| G4 | ทุก error response | รูปแบบ error สอดคล้องกับ code และรายละเอียดของกรณีนั้น | `{"error":{"code":"...","message":"..."}}`; เพิ่ม `details` ตามเงื่อนไขของ error code |
+| G5 | ทุก response สถานะ `2xx` | field ของ endpoint อยู่ระดับบนสุด; `204` จบ response ทันที | ตัวอย่าง: `200 {"user":{"id":1,"username":"owner"}}`; `204` |
+
+### ตัวอย่างโค้ดฝั่ง Backend
+
+ตัวอย่างต่อไปนี้ใช้ Express และ Drizzle ที่โครงการใช้อยู่ ปรับ import path ให้ตรงกับไฟล์ที่วาง middleware โดยติดตั้ง JSON parser ก่อน routes และติดตั้ง error handler หลัง routes
+
+#### ตรวจ session cookie
+
+สร้าง session ID จาก secure random bytes เมื่อ login สำเร็จ ส่งค่าดิบใน cookie และเก็บเฉพาะ hash ในฐานข้อมูล อ่าน `sid`, แปลง token เป็น hash แล้วค้นหา session ที่ยังไม่หมดอายุ จากนั้น middleware ส่ง `userId` ให้ endpoint ถัดไปผ่าน `res.locals`
+
+```ts
+import { createHash, randomBytes } from "node:crypto";
+import type { Request, RequestHandler, Response } from "express";
+import { eq } from "drizzle-orm";
+import type { AppDatabase } from "./db";
+import { sessions } from "./db";
+
+function createSessionId(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+function hashSessionId(sessionId: string): string {
+  return createHash("sha256").update(sessionId).digest("hex");
+}
+
+function sendApiError(
+  res: Response,
+  status: number,
+  code: string,
+  message: string,
+) {
+  return res.status(status).json({ error: { code, message } });
+}
+
+function readCookie(req: Request, name: string): string | undefined {
+  const pair = req.headers.cookie
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+
+  return pair?.slice(name.length + 1);
+}
+
+function requireSession(db: AppDatabase): RequestHandler {
+  return (req, res, next) => {
+    const token = readCookie(req, "sid");
+    if (!token) {
+      return sendApiError(res, 401, "UNAUTHENTICATED", "Authentication required");
+    }
+
+    const tokenHash = hashSessionId(token);
+    const session = db
+      .select({
+        userId: sessions.userId,
+        expiresAt: sessions.expiresAt,
+      })
+      .from(sessions)
+      .where(eq(sessions.tokenHash, tokenHash))
+      .get();
+
+    if (!session || session.expiresAt <= new Date().toISOString()) {
+      return sendApiError(res, 401, "UNAUTHENTICATED", "Authentication required");
+    }
+
+    res.locals.userId = session.userId;
+    next();
+  };
+}
+```
+
+ใน `POST /api/auth/login` ให้สร้าง ID และ hash ก่อนบันทึก session:
+
+```ts
+const sessionId = createSessionId();
+const tokenHash = hashSessionId(sessionId);
+
+db.insert(sessions)
+  .values({ tokenHash, userId, createdAt, expiresAt })
+  .run();
+
+res.append(
+  "Set-Cookie",
+  `sid=${sessionId}; Path=/; HttpOnly; SameSite=Lax${req.secure ? "; Secure" : ""}`,
+);
+```
+
+ใช้ `requireSession(db)` กับทุก route ที่ต้องยืนยันตัวตน ส่วน `POST /api/auth/login` เป็น route สาธารณะ ส่ง session ID ผ่าน cookie และบันทึก hash ในฐานข้อมูล
+
+#### จัดการ malformed JSON
+
+ติดตั้ง `express.json()` ก่อน routes ให้ error handler ตรวจ error จาก JSON parser แล้วส่งรูปแบบ `BAD_REQUEST` ตามสัญญา โดย `apiRoutes` ในตัวอย่างคือ Express Router ที่รวม routes ของ API:
+
+```ts
+import type { ErrorRequestHandler } from "express";
+
+function isMalformedJson(
+  error: unknown,
+): error is SyntaxError & { type: string } {
+  return (
+    error instanceof SyntaxError &&
+    "type" in error &&
+    error.type === "entity.parse.failed"
+  );
+}
+
+const handleJsonParseError: ErrorRequestHandler = (
+  error,
+  _req,
+  res,
+  next,
+) => {
+  if (isMalformedJson(error)) {
+    return sendApiError(res, 400, "BAD_REQUEST", "Malformed JSON");
+  }
+
+  next(error);
+};
+
+app.use(express.json());
+app.use(apiRoutes);
+app.use(handleJsonParseError);
+```
 
 ## 4. รายละเอียด endpoint
 
