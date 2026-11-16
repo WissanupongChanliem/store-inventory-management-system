@@ -82,7 +82,24 @@
 
     <div class="user">
         <span>{user.username}</span>
-        <button type="button" onclick={onlogout}>ออกจากระบบ</button>
+        <button type="button" onclick={onlogout}>
+            <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" x2="9" y1="12" y2="12" />
+            </svg>
+            <span>ออกจากระบบ</span>
+        </button>
     </div>
 </aside>
 
@@ -157,17 +174,21 @@
     }
 
     .user button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         padding: 10px 14px;
         font: inherit;
-        color: #17634e;
+        color: #6b7974;
         background: transparent;
-        border: 1px solid #17634e;
+        border: 1px solid #6b7974;
         border-radius: 8px;
         cursor: pointer;
     }
 
     .user button:hover {
-        background: #eaf3eb;
+        background: #f5f6f3;
     }
 
     @media (max-width: 720px) {

@@ -45,7 +45,8 @@ const realApi = {
     deleteProduct: (id) => request('DELETE', `/api/products/${id}`),
     checkout: (items) => request('POST', '/api/checkout', { items }),
     listSales: ({ date } = {}) =>
-        request('GET', date ? `/api/sales?date=${encodeURIComponent(date)}` : '/api/sales')
+        request('GET', date ? `/api/sales?date=${encodeURIComponent(date)}` : '/api/sales'),
+    updateAccount: (data) => request('PATCH', '/api/auth/me', data)
 }
 
 // ---------- ข้อมูลจำลอง: ทำงานในหน่วยความจำ รีเฟรชหน้าแล้วรีเซ็ต ----------
@@ -328,6 +329,14 @@ const mockApi = {
             },
             items: copy(items)
         }
+    },
+    async updateAccount(data) {
+        await wait()
+        if (data.currentPassword !== 'password1234') {
+            throw new ApiError(401, 'INVALID_CREDENTIALS', 'รหัสผ่านไม่ถูกต้อง')
+        }
+        loggedIn = false
+        return { user: { id: 1, username: data.newUsername ?? 'owner' } }
     }
 }
 
