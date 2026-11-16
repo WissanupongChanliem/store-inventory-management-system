@@ -15,7 +15,17 @@
     "test:checkout": "npm run build && jest --runInBand --runTestsByPath dist/test/checkout.test.js",
     "test:sales": "npm run build && jest --runInBand --runTestsByPath dist/test/sales.test.js",
     "test:health": "npm run build && jest --runInBand --runTestsByPath dist/test/health.test.js",
-    "test:schema": "npm run build && jest --runInBand --runTestsByPath dist/test/schema.test.js"
+    "test:schema": "npm run build && jest --runInBand --runTestsByPath dist/test/schema.test.js",
+    "test:auth:login": "npm run build && jest --runInBand --runTestsByPath dist/test/auth.test.js --testNamePattern=\"LOGIN-1|LOGIN-3 and LOGIN-4|LOGIN-5|unknown login fields|G3 rejects malformed JSON on POST /api/auth/login\"",
+    "test:auth:logout": "npm run build && jest --runInBand --runTestsByPath dist/test/auth.test.js --testNamePattern=\"LOGOUT-|G3 rejects malformed JSON on POST /api/auth/logout\"",
+    "test:auth:me:get": "npm run build && jest --runInBand --runTestsByPath dist/test/auth.test.js --testNamePattern=\"LOGIN-2|G1 rejects GET /api/auth/me|G1 rejects an expired session|G3 rejects malformed JSON on GET /api/auth/me\"",
+    "test:auth:me:patch": "npm run build && jest --runInBand --runTestsByPath dist/test/auth.test.js --testNamePattern=\"ACCOUNT-|G1 rejects PATCH /api/auth/me|G3 rejects malformed JSON on PATCH /api/auth/me\"",
+    "test:products:create": "npm run build && jest --runInBand --runTestsByPath dist/test/products.test.js --testNamePattern=\"G1 rejects post /api/products|G3 rejects malformed JSON on POST /api/products|PROD-C\"",
+    "test:products:update": "npm run build && jest --runInBand --runTestsByPath dist/test/products.test.js --testNamePattern=\"G1 rejects patch /api/products|G2 rejects PATCH /api/products|G3 rejects malformed JSON when updating a product|PROD-U\"",
+    "test:products:list": "npm run build && jest --runInBand --runTestsByPath dist/test/products.test.js --testNamePattern=\"G1 rejects get /api/products|G3 rejects malformed JSON on GET /api/products|PROD-L\"",
+    "test:products:delete": "npm run build && jest --runInBand --runTestsByPath dist/test/products.test.js --testNamePattern=\"G1 rejects delete /api/products|G2 rejects DELETE /api/products|G3 rejects malformed JSON on DELETE /api/products|PROD-D\"",
+    "test:checkout:create": "npm run build && jest --runInBand --runTestsByPath dist/test/checkout.test.js --testNamePattern=\"G1 rejects checkout|G3 rejects malformed JSON|CO-\"",
+    "test:sales:list": "npm run build && jest --runInBand --runTestsByPath dist/test/sales.test.js --testNamePattern=\"G1 rejects sales requests|G3 rejects malformed JSON on GET /api/sales|SALES-\""
   },
   "engines": {
     "node": ">=20"

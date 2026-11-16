@@ -561,6 +561,23 @@ npm run test:health
 npm run test:schema
 ```
 
+คำสั่งสำหรับรัน test แยกตาม endpoint:
+
+| Endpoint | คำสั่ง |
+|---|---|
+| `POST /api/auth/login` | `npm run test:auth:login` |
+| `POST /api/auth/logout` | `npm run test:auth:logout` |
+| `GET /api/auth/me` | `npm run test:auth:me:get` |
+| `PATCH /api/auth/me` | `npm run test:auth:me:patch` |
+| `POST /api/products` | `npm run test:products:create` |
+| `PATCH /api/products/{id}` | `npm run test:products:update` |
+| `GET /api/products` | `npm run test:products:list` |
+| `DELETE /api/products/{id}` | `npm run test:products:delete` |
+| `POST /api/checkout` | `npm run test:checkout:create` |
+| `GET /api/sales` | `npm run test:sales:list` |
+
+แต่ละคำสั่ง build backend ก่อน แล้วรันเฉพาะ test case ของ endpoint ที่ระบุ
+
 ## 6. ข้อตกลงของ MVP
 
 - ลบสินค้าออกถาวร แต่เก็บสำเนาชื่อและราคาในรายการขายเพื่อรักษาประวัติ
