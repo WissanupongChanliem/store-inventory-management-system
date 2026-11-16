@@ -4,6 +4,8 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
+import { sql, SQL } from "drizzle-orm";
+import { AnyPgColumn } from "drizzle-orm/pg-core/columns/common";
 
 export * from "./schema";
 export type AppDatabase = BetterSQLite3Database<typeof schema>;
@@ -22,4 +24,8 @@ export function createDatabase(databaseUrl: string) {
     db: drizzle(sqlite, { schema }),
     close: () => sqlite.close(),
   };
+}
+
+export function lower(text: AnyPgColumn): SQL {
+  return sql`lower(${text})`;
 }
