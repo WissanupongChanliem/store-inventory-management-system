@@ -31,6 +31,7 @@ Drizzle types: `User` สำหรับแถวที่อ่านได้ 
 |---|---|---|---|---|
 | `tokenHash` | `token_hash` | `string` / `TEXT` | ไม่ได้ | Primary key; เก็บ hash ของ opaque session token ไม่เก็บ token ดิบ |
 | `userId` | `user_id` | `number` / `INTEGER` | ไม่ได้ | Foreign key ไป `users.id`; ลบ session เมื่อผู้ใช้ถูกลบ |
+| `username` | `username` | `string` / `TEXT` | ไม่ได้ | Username ที่ผูกกับ session ตอนเข้าสู่ระบบ; การเปลี่ยน username จะยกเลิก session เดิม |
 | `createdAt` | `created_at` | `string` / `TEXT` | ไม่ได้ | เวลาสร้าง session |
 | `expiresAt` | `expires_at` | `string` / `TEXT` | ไม่ได้ | เวลาหมดอายุของ session |
 

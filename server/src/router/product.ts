@@ -1,9 +1,9 @@
 import express from 'express';
 import { requireSession } from '../middleware/session';
-import { lower, products } from '../db';
+import { AppDatabase, lower, products } from '../db';
 import { eq } from 'drizzle-orm';
 
-function getProductRouter(db: any) {
+function getProductRouter(db: AppDatabase) {
     const router = express.Router();
 
     router.post('/', requireSession(db), async (req, res) => {
@@ -11,6 +11,8 @@ function getProductRouter(db: any) {
             || typeof req.body.name !== 'string'
             || typeof req.body.priceSatang !== 'number'
             || typeof req.body.amount !== 'number'
+            || !Number.isInteger(req.body.priceSatang)
+            || !Number.isInteger(req.body.amount)
             || req.body.name.trim() === ''
             || req.body.priceSatang < 0
             || req.body.priceSatang > 100000000
@@ -37,7 +39,7 @@ function getProductRouter(db: any) {
             });
         }
 
-        if (db.select().from('products').where(eq(lower(products.name), req.body.name.trim().toLowerCase())).get()) {
+        if (db.select().from(products).where(eq(lower(products.name), req.body.name.trim().toLowerCase())).get()) {
             return res.status(409).json({
                 error: {
                     code: 'PRODUCT_NAME_EXISTS',
@@ -46,14 +48,14 @@ function getProductRouter(db: any) {
             });
         }
 
-        let product = {
+        let input = {
             name: req.body.name.trim(),
             priceSatang: req.body.priceSatang,
             amount: req.body.amount,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         }
-        db.insert(products).values(product);
+        const product = db.insert(products).values(input).returning().get();
         res.status(201).json({ "product": product });
     })
 

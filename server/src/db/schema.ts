@@ -26,6 +26,7 @@ export const sessions = sqliteTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    username: text("username").notNull(),
     createdAt: text("created_at").notNull(),
     expiresAt: text("expires_at").notNull(),
   },

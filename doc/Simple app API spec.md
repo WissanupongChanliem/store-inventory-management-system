@@ -52,7 +52,7 @@ Cookie ใช้เก็บ **เฉพาะ session token แบบสุ่�
 - ห้ามใส่ username, password, password hash, user ID, role หรือข้อมูลโปรไฟล์ลงใน cookie
 - ตั้งค่า `HttpOnly`, `SameSite=Lax`, `Path=/` และตั้ง `Secure` เมื่อใช้ HTTPS
 - ไม่ส่ง token กลับมาใน JSON response และไม่เขียน token ลง log
-- ฝั่ง server เก็บ hash ของ token พร้อม `userId`, เวลาสร้าง และเวลาหมดอายุไว้ในตาราง session; ตรวจ session จากข้อมูลฝั่ง server ทุกคำขอ
+- ฝั่ง server เก็บ hash ของ token พร้อม `userId`, `username`, เวลาสร้าง และเวลาหมดอายุไว้ในตาราง session; ตรวจ session จากข้อมูลฝั่ง server ทุกคำขอ
 - เมื่อ logout ให้ลบหรือทำให้ session ฝั่ง server ใช้ไม่ได้ และส่ง `Set-Cookie` เพื่อล้าง `sid`
 - อายุ session ยังไม่ได้กำหนดเป็นตัวเลข; ค่า `Expires`/`Max-Age` ของ cookie (ถ้ามี) ต้องสอดคล้องกับเวลาหมดอายุที่ server บันทึกไว้
 
@@ -155,7 +155,7 @@ Set-Cookie: sid=<opaque-random-token>; Path=/; HttpOnly; SameSite=Lax; Secure
 
 #### ตรวจ session cookie
 
-สร้าง session ID จาก secure random bytes เมื่อ login สำเร็จ ส่งค่าดิบใน cookie และเก็บเฉพาะ hash ในฐานข้อมูล อ่าน `sid`, แปลง token เป็น hash แล้วค้นหา session ที่ยังไม่หมดอายุ จากนั้น middleware ส่ง `userId` ให้ endpoint ถัดไปผ่าน `res.locals`
+สร้าง session ID จาก secure random bytes เมื่อ login สำเร็จ ส่งค่าดิบใน cookie และเก็บเฉพาะ hash ในฐานข้อมูล อ่าน `sid`, แปลง token เป็น hash แล้วค้นหา session ที่ยังไม่หมดอายุ จากนั้น middleware ส่ง `userId` และ `username` ให้ endpoint ถัดไปผ่าน `res.locals`
 
 ```ts
 import { createHash, randomBytes } from "node:crypto";
@@ -201,6 +201,7 @@ function requireSession(db: AppDatabase): RequestHandler {
     const session = db
       .select({
         userId: sessions.userId,
+        username: sessions.username,
         expiresAt: sessions.expiresAt,
       })
       .from(sessions)
@@ -212,6 +213,7 @@ function requireSession(db: AppDatabase): RequestHandler {
     }
 
     res.locals.userId = session.userId;
+    res.locals.username = session.username;
     next();
   };
 }
@@ -224,7 +226,7 @@ const sessionId = createSessionId();
 const tokenHash = hashSessionId(sessionId);
 
 db.insert(sessions)
-  .values({ tokenHash, userId, createdAt, expiresAt })
+  .values({ tokenHash, userId, username: user.username, createdAt, expiresAt })
   .run();
 
 res.append(

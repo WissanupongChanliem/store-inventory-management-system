@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Request, RequestHandler, Response } from "express";
+import type { RequestHandler } from "express";
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "../db";
 import { sessions } from "../db";
-import { send } from "node:process";
+
+const sessionMaxAge = 1000 * 60 * 60 * 24 * 1; // 1 day
 
 function createSessionId(): string {
   return randomBytes(32).toString("base64url");
@@ -24,11 +25,11 @@ function requireSession(db: AppDatabase): RequestHandler {
         },
       });
     }
-
-    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const tokenHash = hashSessionId(token);
     const session = db
       .select({
         userId: sessions.userId,
+        username: sessions.username,
         expiresAt: sessions.expiresAt,
       })
       .from(sessions)
@@ -45,8 +46,9 @@ function requireSession(db: AppDatabase): RequestHandler {
     }
 
     res.locals.userId = session.userId;
+    res.locals.username = session.username;
     next();
   };
 }
 
-export { createSessionId, hashSessionId, requireSession };
+export { createSessionId, hashSessionId, requireSession, sessionMaxAge };
