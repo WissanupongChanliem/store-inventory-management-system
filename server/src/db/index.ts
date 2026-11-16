@@ -6,6 +6,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { sql, SQL } from "drizzle-orm";
 import { AnyPgColumn } from "drizzle-orm/pg-core/columns/common";
+import { SQLiteColumn } from "drizzle-orm/sqlite-core";
 
 export * from "./schema";
 export type AppDatabase = BetterSQLite3Database<typeof schema>;
@@ -26,6 +27,6 @@ export function createDatabase(databaseUrl: string) {
   };
 }
 
-export function lower(text: AnyPgColumn): SQL {
+export function lower(text: SQLiteColumn): SQL {
   return sql`lower(${text})`;
 }

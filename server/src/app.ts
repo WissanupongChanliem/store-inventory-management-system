@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import { sql } from "drizzle-orm";
 import type { AppDatabase } from "./db";
+import { getAuthRouter } from "./router/auth";
+import cookieParser from "cookie-parser";
 
 declare global {
   namespace Express {
@@ -13,6 +15,8 @@ declare global {
 
 export function createApp({ db }: { db: AppDatabase }) {
   const app = express();
+
+  app.use(cookieParser());
 
   app.use(express.json());
   app.use((req, res, next) => {
@@ -34,6 +38,9 @@ export function createApp({ db }: { db: AppDatabase }) {
       });
     }
   });
+
+  app.use("/api/auth", getAuthRouter(db));
+  app.use("/api/products", require("./router/product").getProductRouter(db));
 
   return app;
 }
