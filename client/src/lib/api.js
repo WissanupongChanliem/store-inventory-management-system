@@ -1,5 +1,6 @@
 // เปลี่ยนเป็น false เมื่อ backend พร้อมใช้งาน
 const USE_MOCK = true
+const USE_REAL_AUTH = true
 
 export class ApiError extends Error {
     constructor(status, code, message, details = []) {
@@ -10,10 +11,12 @@ export class ApiError extends Error {
     }
 }
 
-// ---------- ของจริง: เรียก backend ผ่าน proxy ----------
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
 async function request(method, path, body) {
-    const res = await fetch(path, {
+    const res = await fetch(`${API_BASE}${path}`, {
         method,
+        credentials: 'include', // ต้องมี ไม่เช่นนั้น cookie sid จะไม่ถูกส่งหรือเก็บ
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined
     })
@@ -340,4 +343,9 @@ const mockApi = {
     }
 }
 
-export const api = USE_MOCK ? mockApi : realApi
+export const api = {
+    ...(USE_MOCK ? mockApi : realApi),
+    ...(USE_REAL_AUTH
+        ? { me: realApi.me, login: realApi.login, logout: realApi.logout }
+        : {})
+}

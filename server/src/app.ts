@@ -16,6 +16,22 @@ declare global {
 
 export function createApp({ db }: { db: AppDatabase }) {
   const app = express();
+  const allowedOrigin = process.env.CORS_ORIGIN ?? "http://localhost:5173";
+  //CORS
+  app.use((req, res, next) => {
+    if (req.headers.origin === allowedOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
 
   app.use(cookieParser());
 
