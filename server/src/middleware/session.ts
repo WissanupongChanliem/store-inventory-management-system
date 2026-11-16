@@ -21,7 +21,6 @@ function requireSession(db: AppDatabase): RequestHandler {
         error: {
           code: "UNAUTHENTICATED",
           message: "Authentication required",
-          requestId: req.requestId,
         },
       });
     }
@@ -41,7 +40,6 @@ function requireSession(db: AppDatabase): RequestHandler {
         error: {
           code: "UNAUTHENTICATED",
           message: "Authentication required",
-          requestId: req.requestId,
         },
       });
     }
