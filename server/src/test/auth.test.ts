@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import request from "supertest";
 import {
+  createApiErrorReporter,
   createTestApp,
-  expectApiError,
   expectSessionCookieCleared,
   expectSuccess,
   loginAsOwner,
@@ -24,6 +24,7 @@ const protectedAuthProbes = [
 
 describe("Authentication endpoints", () => {
   let context: TestContext;
+  const expectApiError = createApiErrorReporter(() => context);
 
   beforeAll(() => {
     context = createTestApp();
@@ -100,8 +101,14 @@ describe("Authentication endpoints", () => {
       .post("/api/auth/login")
       .send({ username: "not-an-owner", password: TEST_OWNER.password });
 
-    expectApiError(invalidPassword, 401, "INVALID_CREDENTIALS");
-    expectApiError(invalidUsername, 401, "INVALID_CREDENTIALS");
+    expectApiError(invalidPassword, 401, "INVALID_CREDENTIALS", {
+      username: TEST_OWNER.username,
+      password: "incorrect password",
+    });
+    expectApiError(invalidUsername, 401, "INVALID_CREDENTIALS", {
+      username: "not-an-owner",
+      password: TEST_OWNER.password,
+    });
     expect(invalidUsername.body.error.message).toBe(
       invalidPassword.body.error.message,
     );
@@ -126,7 +133,7 @@ describe("Authentication endpoints", () => {
   ])("LOGIN-5 rejects %s", async (_caseName, body, fields) => {
     const response = await request(context.app).post("/api/auth/login").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(response.body.error.details).toEqual(
       expect.arrayContaining(
         fields.map((field) => expect.objectContaining({ field })),
@@ -135,12 +142,13 @@ describe("Authentication endpoints", () => {
   });
 
   it("rejects unknown login fields without authenticating", async () => {
-    const response = await request(context.app).post("/api/auth/login").send({
+    const body = {
       ...TEST_OWNER,
       isAdmin: true,
-    });
+    };
+    const response = await request(context.app).post("/api/auth/login").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
   });
 
   it.each([
@@ -150,7 +158,11 @@ describe("Authentication endpoints", () => {
     const apiRequest = request(context.app).get("/api/auth/me");
     const response = await (cookie ? apiRequest.set("Cookie", cookie) : apiRequest);
 
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: cookie ? "forged" : "missing",
+    });
   });
 
   it("G1 rejects an expired session", async () => {
@@ -160,19 +172,30 @@ describe("Authentication endpoints", () => {
       .run("2000-01-01T00:00:00.000Z");
     const response = await agent.get("/api/auth/me");
 
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      session: "expired",
+    });
   });
 
   it.each([
     ["without a cookie", undefined],
     ["with a forged cookie", "sid=not-a-valid-session"],
   ])("G1 rejects PATCH /api/auth/me %s", async (_caseName, cookie) => {
-    const apiRequest = request(context.app)
-      .patch("/api/auth/me")
-      .send({ currentPassword: TEST_OWNER.password, newUsername: "owner-next" });
+    const body = {
+      currentPassword: TEST_OWNER.password,
+      newUsername: "owner-next",
+    };
+    const apiRequest = request(context.app).patch("/api/auth/me").send(body);
     const response = await (cookie ? apiRequest.set("Cookie", cookie) : apiRequest);
 
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "PATCH",
+      path: "/api/auth/me",
+      body,
+      cookie: cookie ? "forged" : "missing",
+    });
   });
 
   it.each([
@@ -182,7 +205,11 @@ describe("Authentication endpoints", () => {
     ["POST", "/api/auth/logout", "post"],
   ] as const)("G3 rejects malformed JSON on %s %s", async (_method, path, method) => {
     const response = await sendMalformedJson(context.app, method, path);
-    expectApiError(response, 400, "BAD_REQUEST");
+    expectApiError(response, 400, "BAD_REQUEST", {
+      method,
+      path,
+      body: '{"malformed":',
+    });
   });
 
   it("LOGOUT-1 and LOGOUT-2 revoke the session and clear its cookie", async () => {
@@ -206,9 +233,25 @@ describe("Authentication endpoints", () => {
         newUsername: "owner-next",
       });
 
-    expectApiError(currentSessionResponse, 401, "UNAUTHENTICATED");
-    expectApiError(replayedCookieResponse, 401, "UNAUTHENTICATED");
-    expectApiError(replayedPatchResponse, 401, "UNAUTHENTICATED");
+    expectApiError(currentSessionResponse, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: "revoked",
+    });
+    expectApiError(replayedCookieResponse, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: "revoked",
+    });
+    expectApiError(replayedPatchResponse, 401, "UNAUTHENTICATED", {
+      method: "PATCH",
+      path: "/api/auth/me",
+      cookie: "revoked",
+      body: {
+        currentPassword: TEST_OWNER.password,
+        newUsername: "owner-next",
+      },
+    });
   });
 
   it("LOGOUT-3 allows logout without a session, including repeated calls", async () => {
@@ -238,7 +281,11 @@ describe("Authentication endpoints", () => {
     const replayedSession = await request(context.app)
       .get("/api/auth/me")
       .set("Cookie", originalCookie);
-    expectApiError(replayedSession, 401, "UNAUTHENTICATED");
+    expectApiError(replayedSession, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: "revoked",
+    });
 
     const newLogin = await request(context.app)
       .post("/api/auth/login")
@@ -264,7 +311,10 @@ describe("Authentication endpoints", () => {
     const newPasswordLogin = await request(context.app)
       .post("/api/auth/login")
       .send({ username: TEST_OWNER.username, password: newPassword });
-    expectApiError(oldPasswordLogin, 401, "INVALID_CREDENTIALS");
+    expectApiError(oldPasswordLogin, 401, "INVALID_CREDENTIALS", {
+      username: TEST_OWNER.username,
+      password: TEST_OWNER.password,
+    });
     expect(newPasswordLogin.status).toBe(200);
   });
 
@@ -293,13 +343,14 @@ describe("Authentication endpoints", () => {
 
   it("ACCOUNT-4 rejects an incorrect current password without changing the account", async () => {
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.patch("/api/auth/me").send({
+    const body = {
       currentPassword: "incorrect current password",
       newUsername: "owner-compromised",
       newPassword: "A new valid owner password 123",
-    });
+    };
+    const response = await agent.patch("/api/auth/me").send(body);
 
-    expectApiError(response, 401, "INVALID_CREDENTIALS");
+    expectApiError(response, 401, "INVALID_CREDENTIALS", body);
     const currentLogin = await request(context.app)
       .post("/api/auth/login")
       .send(TEST_OWNER);
@@ -307,7 +358,10 @@ describe("Authentication endpoints", () => {
     const changedLogin = await request(context.app)
       .post("/api/auth/login")
       .send({ username: "owner-compromised", password: "A new valid owner password 123" });
-    expectApiError(changedLogin, 401, "INVALID_CREDENTIALS");
+    expectApiError(changedLogin, 401, "INVALID_CREDENTIALS", {
+      username: "owner-compromised",
+      password: "A new valid owner password 123",
+    });
   });
 
   it.each([
@@ -318,7 +372,7 @@ describe("Authentication endpoints", () => {
     const { agent } = await loginAsOwner(context.app);
     const response = await agent.patch("/api/auth/me").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     if (field) {
       expect(response.body.error.details).toEqual(
         expect.arrayContaining([expect.objectContaining({ field })]),
@@ -336,12 +390,13 @@ describe("Authentication endpoints", () => {
     ["non-string password", { newPassword: 12 }, "newPassword"],
   ])("ACCOUNT-6 rejects %s", async (_caseName, changedField, expectedField) => {
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.patch("/api/auth/me").send({
+    const body = {
       currentPassword: TEST_OWNER.password,
       ...changedField,
-    });
+    };
+    const response = await agent.patch("/api/auth/me").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(response.body.error.details).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ field: expectedField }),
@@ -399,19 +454,23 @@ describe("Authentication endpoints", () => {
 
   it("ACCOUNT-7 rejects unknown fields without changing the account", async () => {
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.patch("/api/auth/me").send({
+    const body = {
       currentPassword: TEST_OWNER.password,
       newUsername: "changed-owner",
       isAdmin: true,
-    });
+    };
+    const response = await agent.patch("/api/auth/me").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     const login = await request(context.app).post("/api/auth/login").send(TEST_OWNER);
     expect(login.status).toBe(200);
     const changedLogin = await request(context.app)
       .post("/api/auth/login")
       .send({ username: "changed-owner", password: TEST_OWNER.password });
-    expectApiError(changedLogin, 401, "INVALID_CREDENTIALS");
+    expectApiError(changedLogin, 401, "INVALID_CREDENTIALS", {
+      username: "changed-owner",
+      password: TEST_OWNER.password,
+    });
   });
 
   it("ACCOUNT-8 invalidates the old session after a successful account change", async () => {
@@ -432,10 +491,18 @@ describe("Authentication endpoints", () => {
     const response = await request(context.app)
       .get("/api/auth/me")
       .set("Cookie", oldCookie);
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: "revoked",
+    });
     const secondSessionResponse = await request(context.app)
       .get("/api/auth/me")
       .set("Cookie", secondCookie);
-    expectApiError(secondSessionResponse, 401, "UNAUTHENTICATED");
+    expectApiError(secondSessionResponse, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/auth/me",
+      cookie: "revoked",
+    });
   });
 });

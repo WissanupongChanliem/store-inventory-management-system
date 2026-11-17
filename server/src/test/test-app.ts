@@ -252,6 +252,100 @@ export function expectApiError(
   expect(serialized).not.toMatch(/\b(?:select|insert|update|delete)\b.+\bfrom\b/i);
 }
 
+export function createApiErrorReporter(getContext: () => TestContext) {
+  return (
+    response: Response,
+    status: number,
+    code?: string,
+    requestInput?: unknown,
+  ) => {
+    try {
+      expectApiError(response, status, code);
+    } catch (error) {
+      const apiError = response.body?.error;
+      const responseText = response.text ?? "";
+      const htmlMessage = responseText.match(/<pre>([\s\S]*?)<\/pre>/i)?.[1];
+      const fallbackMessage = (htmlMessage ?? responseText)
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const responseMessageCandidate =
+        apiError?.message ??
+        response.body?.message ??
+        fallbackMessage;
+      const responseMessage =
+        typeof responseMessageCandidate === "string" &&
+        responseMessageCandidate.length <= 500 &&
+        !/stack|SQLITE_|password_hash|passwordHash|(?:^|\s)at\s+\S+/i.test(
+          responseMessageCandidate,
+        )
+          ? responseMessageCandidate
+          : "(no safe API message in response)";
+      const context = getContext();
+      const diagnostics = [
+        `Test: ${expect.getState().currentTestName ?? "(unknown)"}`,
+        `API response: ${JSON.stringify(
+          {
+            status: response.status,
+            code: apiError?.code ?? response.body?.code,
+            message: responseMessage,
+            details: apiError?.details,
+          },
+          null,
+          2,
+        )}`,
+        `Request input: ${JSON.stringify(requestInput ?? "(not provided)", null, 2)}`,
+        `Database state: ${JSON.stringify(
+          {
+            users: context.db.$client
+              .prepare("SELECT id, username, created_at AS createdAt FROM users ORDER BY id")
+              .all(),
+            sessions: context.db.$client
+              .prepare(
+                `SELECT user_id AS userId, username, created_at AS createdAt,
+                        expires_at AS expiresAt
+                 FROM sessions ORDER BY user_id, created_at`,
+              )
+              .all(),
+            products: context.db.$client
+              .prepare(
+                `SELECT id, name, amount, price_satang AS priceSatang,
+                        created_at AS createdAt, updated_at AS updatedAt
+                 FROM products ORDER BY id`,
+              )
+              .all(),
+            sales: context.db.$client
+              .prepare(
+                `SELECT id, total_satang AS totalSatang, created_at AS createdAt
+                 FROM sales ORDER BY id`,
+              )
+              .all(),
+            saleItems: context.db.$client
+              .prepare(
+                `SELECT id, sale_id AS saleId, product_id AS productId, name,
+                        unit_price_satang AS unitPriceSatang, quantity,
+                        line_total_satang AS lineTotalSatang
+                 FROM sale_items ORDER BY id`,
+              )
+              .all(),
+          },
+          null,
+          2,
+        )}`,
+      ].join("\n\n");
+
+      if (error instanceof Error) {
+        error.message = `${error.message}\n\n${diagnostics}`;
+        error.stack = undefined;
+        throw error;
+      }
+      const diagnosticError = new Error(`${String(error)}\n\n${diagnostics}`);
+      diagnosticError.stack = undefined;
+      throw diagnosticError;
+    }
+  };
+}
+
 export function expectTopLevel(response: Response) {
   expect(response.body).toBeDefined();
   expect(response.body).not.toHaveProperty("data");

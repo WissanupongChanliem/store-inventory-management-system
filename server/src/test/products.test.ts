@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import request from "supertest";
 import {
+  createApiErrorReporter,
   createTestApp,
-  expectApiError,
   expectSuccess,
   expectValidProductTimestamps,
   loginAsOwner,
@@ -41,6 +41,7 @@ const validProduct = {
 
 describe("Product endpoints", () => {
   let context: TestContext;
+  const expectApiError = createApiErrorReporter(() => context);
 
   beforeAll(() => {
     context = createTestApp();
@@ -54,12 +55,39 @@ describe("Product endpoints", () => {
     context.closeDatabase();
   });
 
+  it("includes the API response and database state when an API error assertion fails", async () => {
+    seedProduct(context, validProduct);
+    const response = await request(context.app).get("/api/products");
+    const requestInput = { method: "GET", path: "/api/products" };
+    let failureMessage = "";
+    let hasStackTrace = false;
+
+    try {
+      expectApiError(response, 500, "INTERNAL_ERROR", requestInput);
+    } catch (error) {
+      if (!(error instanceof Error)) {
+        throw error;
+      }
+      failureMessage = error.message;
+      hasStackTrace = Boolean(error.stack);
+    }
+
+    expect(failureMessage).toContain("API response:");
+    expect(failureMessage).toContain("Authentication required");
+    expect(failureMessage).toContain(requestInput.path);
+    expect(failureMessage).toContain("Database state:");
+    expect(hasStackTrace).toBe(false);
+    expect(failureMessage).toContain(validProduct.name);
+    expect(failureMessage).not.toContain("password_hash");
+    expect(failureMessage).not.toContain("token_hash");
+  });
+
   it.each(protectedProductProbes)(
     "G1 rejects $method $path without a session",
     async ({ method, path, body }) => {
       const apiRequest = request(context.app)[method](path);
       const response = await (body ? apiRequest.send(body) : apiRequest);
-      expectApiError(response, 401, "UNAUTHENTICATED");
+      expectApiError(response, 401, "UNAUTHENTICATED", { method, path, body });
     },
   );
 
@@ -69,7 +97,7 @@ describe("Product endpoints", () => {
       const apiRequest = request(context.app)[method](path);
       const response = await (body ? apiRequest.send(body) : apiRequest)
         .set("Cookie", "sid=not-a-valid-session");
-      expectApiError(response, 401, "UNAUTHENTICATED");
+      expectApiError(response, 401, "UNAUTHENTICATED", { method, path, body });
     },
   );
 
@@ -83,7 +111,7 @@ describe("Product endpoints", () => {
 
       const apiRequest = request(context.app)[method](path).set("Cookie", oldCookie);
       const response = await (body ? apiRequest.send(body) : apiRequest);
-      expectApiError(response, 401, "UNAUTHENTICATED");
+      expectApiError(response, 401, "UNAUTHENTICATED", { method, path, body });
     },
   );
 
@@ -94,7 +122,11 @@ describe("Product endpoints", () => {
     ["DELETE", "/api/products/1", "delete"],
   ] as const)("G3 rejects malformed JSON on %s %s", async (_method, path, method) => {
     const response = await sendMalformedJson(context.app, method, path);
-    expectApiError(response, 400, "BAD_REQUEST");
+    expectApiError(response, 400, "BAD_REQUEST", {
+      method,
+      path,
+      body: '{"malformed":',
+    });
   });
 
   it("PROD-C-1 creates a product and returns its top-level fields", async () => {
@@ -129,12 +161,13 @@ describe("Product endpoints", () => {
     seedProduct(context, validProduct);
     const { agent } = await loginAsOwner(context.app);
 
-    const response = await agent.post("/api/products").send({
+    const body = {
       ...validProduct,
       name: "mILK 1l",
-    });
+    };
+    const response = await agent.post("/api/products").send(body);
 
-    expectApiError(response, 409, "PRODUCT_NAME_EXISTS");
+    expectApiError(response, 409, "PRODUCT_NAME_EXISTS", body);
     expect(rowCount(context, "products")).toBe(1);
   });
 
@@ -159,7 +192,7 @@ describe("Product endpoints", () => {
     const { agent } = await loginAsOwner(context.app);
     const response = await agent.post("/api/products").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(response.body.error.details).toEqual(
       expect.arrayContaining(fields.map((field) => expect.objectContaining({ field }))),
     );
@@ -191,12 +224,13 @@ describe("Product endpoints", () => {
 
   it("PROD-C-9 rejects unknown fields without creating a product", async () => {
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.post("/api/products").send({
+    const body = {
       ...validProduct,
       id: 99,
-    });
+    };
+    const response = await agent.post("/api/products").send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(rowCount(context, "products")).toBe(0);
   });
 
@@ -289,11 +323,12 @@ describe("Product endpoints", () => {
     const productId = seedProduct(context, validProduct);
     seedProduct(context, { name: "Bread", amount: 5, priceSatang: 3000 });
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.patch(`/api/products/${productId}`).send({
+    const body = {
       name: "bREAD",
-    });
+    };
+    const response = await agent.patch(`/api/products/${productId}`).send(body);
 
-    expectApiError(response, 409, "PRODUCT_NAME_EXISTS");
+    expectApiError(response, 409, "PRODUCT_NAME_EXISTS", body);
     expect(productRow(context, productId)).toMatchObject(validProduct);
   });
 
@@ -327,7 +362,7 @@ describe("Product endpoints", () => {
     const { agent } = await loginAsOwner(context.app);
     const response = await agent.patch(`/api/products/${productId}`).send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(response.body.error.details).toEqual(
       expect.arrayContaining([expect.objectContaining({ field })]),
     );
@@ -338,19 +373,24 @@ describe("Product endpoints", () => {
     const productId = seedProduct(context, validProduct);
     const before = productRow(context, productId);
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.patch(`/api/products/${productId}`).send({
+    const body = {
       name: "Changed",
       id: 99,
-    });
+    };
+    const response = await agent.patch(`/api/products/${productId}`).send(body);
 
-    expectApiError(response, 422, "VALIDATION_ERROR");
+    expectApiError(response, 422, "VALIDATION_ERROR", body);
     expect(productRow(context, productId)).toEqual(before);
   });
 
   it("PROD-U-10 returns not found for a well-formed unknown ID", async () => {
     const { agent } = await loginAsOwner(context.app);
     const response = await agent.patch("/api/products/999").send({ name: "Milk" });
-    expectApiError(response, 404, "PRODUCT_NOT_FOUND");
+    expectApiError(response, 404, "PRODUCT_NOT_FOUND", {
+      method: "PATCH",
+      path: "/api/products/999",
+      body: { name: "Milk" },
+    });
   });
 
   it("PROD-U-11 preserves a sold item's historical name and price after a price update", async () => {

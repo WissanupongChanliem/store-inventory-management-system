@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import request from "supertest";
 import {
+  createApiErrorReporter,
   createTestApp,
-  expectApiError,
   expectSuccess,
   loginAsOwner,
   resetTestData,
@@ -15,6 +15,7 @@ import {
 
 describe("Sales endpoint", () => {
   let context: TestContext;
+  const expectApiError = createApiErrorReporter(() => context);
 
   beforeAll(() => {
     context = createTestApp();
@@ -30,14 +31,22 @@ describe("Sales endpoint", () => {
 
   it("G1 rejects sales requests without a session", async () => {
     const response = await request(context.app).get("/api/sales?date=2026-11-15");
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/sales?date=2026-11-15",
+      cookie: "missing",
+    });
   });
 
   it("G1 rejects sales requests with a forged cookie", async () => {
     const response = await request(context.app)
       .get("/api/sales?date=2026-11-15")
       .set("Cookie", "sid=not-a-valid-session");
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/sales?date=2026-11-15",
+      cookie: "forged",
+    });
   });
 
   it("G1 rejects sales requests with a cookie after logout", async () => {
@@ -47,12 +56,20 @@ describe("Sales endpoint", () => {
     const response = await request(context.app)
       .get("/api/sales?date=2026-11-15")
       .set("Cookie", oldCookie);
-    expectApiError(response, 401, "UNAUTHENTICATED");
+    expectApiError(response, 401, "UNAUTHENTICATED", {
+      method: "GET",
+      path: "/api/sales?date=2026-11-15",
+      cookie: "revoked",
+    });
   });
 
   it("G3 rejects malformed JSON on GET /api/sales", async () => {
     const response = await sendMalformedJson(context.app, "get", "/api/sales");
-    expectApiError(response, 400, "BAD_REQUEST");
+    expectApiError(response, 400, "BAD_REQUEST", {
+      method: "GET",
+      path: "/api/sales",
+      body: '{"malformed":',
+    });
   });
 
   it("SALES-1 returns the day's sales newest first and summarizes totals", async () => {
@@ -139,7 +156,11 @@ describe("Sales endpoint", () => {
     async (date) => {
       const { agent } = await loginAsOwner(context.app);
       const response = await agent.get(`/api/sales?date=${encodeURIComponent(date)}`);
-      expectApiError(response, 400, "BAD_REQUEST");
+      expectApiError(response, 400, "BAD_REQUEST", {
+        method: "GET",
+        path: "/api/sales",
+        query: { date },
+      });
     },
   );
 
