@@ -71,6 +71,52 @@
         return [...(data?.items ?? [])].sort(compare);
     });
 
+    let sortOpen = $state(false);
+    let sortRoot;
+    const sortLabel = $derived(
+        SORT_OPTIONS.find((o) => o.value === sortBy)?.label,
+    );
+
+    function chooseSort(value) {
+        sortBy = value;
+        sortOpen = false;
+    }
+
+    // คลิกนอกเมนูให้ปิด
+    function onWindowClick(event) {
+        if (sortOpen && sortRoot && !sortRoot.contains(event.target)) {
+            sortOpen = false;
+        }
+    }
+
+    function onSortKeydown(event) {
+        if (event.key === "Tab") {
+            sortOpen = false;
+            return;
+        }
+        if (event.key === "Escape" && sortOpen) {
+            sortOpen = false;
+            sortRoot.querySelector(".sort-trigger")?.focus();
+            return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        event.preventDefault();
+        if (!sortOpen) {
+            sortOpen = true;
+            return;
+        }
+        const items = [...sortRoot.querySelectorAll(".sort-option")];
+        const index = items.indexOf(document.activeElement);
+        let next;
+        if (index === -1) {
+            next = event.key === "ArrowDown" ? 0 : items.length - 1;
+        } else {
+            const step = event.key === "ArrowDown" ? 1 : -1;
+            next = (index + step + items.length) % items.length;
+        }
+        items[next].focus();
+    }
+
     function baht(satang) {
         return (
             "฿" +
@@ -120,6 +166,7 @@
     }
 </script>
 
+<svelte:window onclick={onWindowClick} />
 <div class="sales">
     <header class="head">
         <div>
@@ -210,31 +257,60 @@
                 <div class="list">
                     <div class="list-head">
                         <h3>รายการขาย</h3>
-                        <div class="sort">
-                            <select
-                                aria-label="เรียงรายการขาย"
-                                bind:value={sortBy}
+                        <div
+                            class="sort"
+                            role="presentation"
+                            bind:this={sortRoot}
+                            onkeydown={onSortKeydown}
+                        >
+                            <button
+                                type="button"
+                                class="sort-trigger"
+                                aria-haspopup="listbox"
+                                aria-expanded={sortOpen}
+                                onclick={() => (sortOpen = !sortOpen)}
                             >
-                                {#each SORT_OPTIONS as option (option.value)}
-                                    <option value={option.value}
-                                        >{option.label}</option
-                                    >
-                                {/each}
-                            </select>
-                            <svg
-                                class="chevron"
-                                viewBox="0 0 24 24"
-                                width="16"
-                                height="16"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path d="m6 9 6 6 6-6" />
-                            </svg>
+                                <span>{sortLabel}</span>
+                                <svg
+                                    class="chevron"
+                                    class:open={sortOpen}
+                                    viewBox="0 0 24 24"
+                                    width="16"
+                                    height="16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="m6 9 6 6 6-6" />
+                                </svg>
+                            </button>
+
+                            {#if sortOpen}
+                                <div
+                                    class="sort-menu"
+                                    role="listbox"
+                                    aria-label="เรียงรายการขาย"
+                                >
+                                    {#each SORT_OPTIONS as option (option.value)}
+                                        <button
+                                            type="button"
+                                            role="option"
+                                            class="sort-option"
+                                            class:selected={option.value ===
+                                                sortBy}
+                                            aria-selected={option.value ===
+                                                sortBy}
+                                            onclick={() =>
+                                                chooseSort(option.value)}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    {/each}
+                                </div>
+                            {/if}
                         </div>
                     </div>
 
@@ -282,7 +358,7 @@
                     </div>
 
                     <p class="foot">
-                        {data.summary.saleCount} บิล · ข้อมูลเฉพาะวันที่เลือก
+                        รวมทั้งหมด {data.summary.saleCount} บิล
                     </p>
                 </div>
 
@@ -533,9 +609,11 @@
         align-items: center;
     }
 
-    .sort select {
-        appearance: none;
-        padding: 8px 36px 8px 14px;
+    .sort-trigger {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px 8px 14px;
         font: inherit;
         font-size: 0.9rem;
         color: #333333;
@@ -545,15 +623,61 @@
         cursor: pointer;
     }
 
-    .sort select:focus-visible {
+    .sort-trigger:focus-visible {
         outline: 2px solid #17634e;
     }
 
     .sort .chevron {
-        position: absolute;
-        right: 12px;
         color: #6b7974;
-        pointer-events: none;
+        transition: transform 0.15s;
+    }
+
+    .sort .chevron.open {
+        transform: rotate(180deg);
+    }
+
+    .sort-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 20;
+        min-width: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        background: #ffffff;
+        border: 1px solid #e1e5e2;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .sort-option {
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        text-align: left;
+        white-space: nowrap;
+        font: inherit;
+        font-size: 0.9rem;
+        color: #333333;
+        background: transparent;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+    }
+
+    .sort-option:hover {
+        background: #f5f6f3;
+    }
+
+    .sort-option:focus-visible {
+        outline: 2px solid #17634e;
+        outline-offset: -2px;
+    }
+
+    .sort-option.selected {
+        font-weight: 600;
+        color: #17634e;
+        background: #eaf3eb;
     }
 
     .table {
