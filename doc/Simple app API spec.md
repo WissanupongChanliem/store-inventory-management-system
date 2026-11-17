@@ -37,7 +37,7 @@
 | จำนวนเงิน | ใช้จำนวนเต็มหน่วยสตางค์ เช่น `priceSatang` และ `totalSatang`; `2500` หมายถึง 25.00 บาท; Frontend เป็นผู้จัดรูปแบบเพื่อแสดงผล |
 | เวลา | ใช้ ISO 8601 UTC; วันที่ขายหมายถึงวันปฏิทินตามเขตเวลาของร้านจาก `STORE_TIMEZONE` ซึ่งมีค่าเริ่มต้นเป็น `Asia/Bangkok` |
 | Response สำเร็จ | ส่ง field ของ endpoint ไว้ที่ระดับบนสุด ไม่มี wrapper กลางชื่อ `data`; `204` ไม่มี body |
-| Response ผิดพลาด | <code>{<br>&nbsp;&nbsp;"error": {<br>&nbsp;&nbsp;&nbsp;&nbsp;"code": "...",<br>&nbsp;&nbsp;&nbsp;&nbsp;"message": "...",<br>&nbsp;&nbsp;&nbsp;&nbsp;"details": [<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...<br>&nbsp;&nbsp;&nbsp;&nbsp;]<br>&nbsp;&nbsp;}<br>}</code>; ส่ง `details` เฉพาะ error code ที่ระบุไว้ด้านล่าง |
+| Response ผิดพลาด | <code>{<br>&nbsp;&nbsp;"error": {<br>&nbsp;&nbsp;&nbsp;&nbsp;"code": "...",<br>&nbsp;&nbsp;&nbsp;&nbsp;"message": "...",<br>&nbsp;&nbsp;&nbsp;&nbsp;"details": [...]<br>&nbsp;&nbsp;}<br>}</code>; `code` ใช้ระบุประเภท error, `message` สรุปสาเหตุ และ `details` อธิบาย field หรือข้อมูลที่เกี่ยวข้องเมื่อ error code กำหนดไว้ |
 | 400 กับ 422 | `400` = JSON เสียรูป, path ID ผิด หรือ query ผิด; `422` = JSON ถูกต้องแต่ข้อมูลใน body ไม่ผ่าน validation |
 | Field ที่ไม่รู้จัก | ปฏิเสธด้วย `422` เพื่อไม่ให้ client ส่ง `id` หรือราคาที่ client กำหนดเอง |
 
@@ -93,6 +93,48 @@ Set-Cookie: sid=<opaque-random-token>; Path=/; HttpOnly; SameSite=Lax; Secure
 | 409 | `INSUFFICIENT_STOCK` | จำนวนที่ขอขายมากกว่าสต็อก | <code>{<br>&nbsp;&nbsp;productId,<br>&nbsp;&nbsp;name,<br>&nbsp;&nbsp;requested,<br>&nbsp;&nbsp;available<br>}</code> ของทุกรายการที่สต็อกไม่พอ |
 | 422 | `VALIDATION_ERROR` | body ไม่ผ่านกฎ validation | <code>{<br>&nbsp;&nbsp;field,<br>&nbsp;&nbsp;message<br>}</code> |
 | 500 | `INTERNAL_ERROR` | เกิดข้อผิดพลาดที่ไม่คาดคิด; ห้ามเปิดเผย stack trace, SQL หรือ password hash | ไม่มี |
+
+ความหมายของข้อมูลใน `details`:
+
+- `VALIDATION_ERROR`: แต่ละรายการระบุ `field` ที่ไม่ผ่าน validation และ `message` อธิบายกฎที่ไม่ผ่าน เช่น ชนิดข้อมูล ช่วงค่าที่อนุญาต หรือ field ที่ต้องส่ง
+- `INSUFFICIENT_STOCK`: แต่ละรายการระบุสินค้า 1 รายการ โดย `productId` และ `name` ชี้ว่าสินค้าใด, `requested` คือจำนวนที่ขอซื้อ และ `available` คือจำนวนที่มีในสต็อกขณะตรวจสอบ
+- `error.message` สรุปปัญหาระดับคำขอ ส่วน `details[].message` ให้เหตุผลเฉพาะของ field หรือสินค้า ไม่ควรใช้ `...` ในข้อความที่ส่งจริง
+
+ตัวอย่าง `VALIDATION_ERROR` เมื่อ `amount` ไม่ใช่จำนวนเต็มในช่วงที่อนุญาต:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid field values",
+    "details": [
+      {
+        "field": "amount",
+        "message": "Product amount must be an integer between 0 and 1,000,000"
+      }
+    ]
+  }
+}
+```
+
+ตัวอย่าง `INSUFFICIENT_STOCK` เมื่อขอซื้อ Milk 1L จำนวน 25 หน่วย แต่มี 24 หน่วย:
+
+```json
+{
+  "error": {
+    "code": "INSUFFICIENT_STOCK",
+    "message": "The requested quantity exceeds available stock",
+    "details": [
+      {
+        "productId": 1,
+        "name": "Milk 1L",
+        "requested": 25,
+        "available": 24
+      }
+    ]
+  }
+}
+```
 
 ### ตัวอย่าง object
 

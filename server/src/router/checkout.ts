@@ -81,35 +81,56 @@ export function getCheckoutRouter(db: AppDatabase) {
         }
 
         let productPurchases: { productId: number; quantity: number; unitPriceSatang: number, lineTotalSatang: number, name: string }[] = [];
+        try{
+            db.transaction((tx) => {
+                const result = tx.insert(sales).values({
+                    totalSatang: totalAmount,
+                    createdAt: new Date().toISOString(),
+                }).returning({saleId: sales.id, createdAt: sales.createdAt}).get();
 
-        const {saleId, createdAt }  = db.insert(sales).values({
-            totalSatang: totalAmount,
-            createdAt: new Date().toISOString(),
-        }).returning({saleId: sales.id, createdAt: sales.createdAt}).get();
+                if (!result) {
+                    throw new Error('Failed to create sale');
+                }
 
-        productsInOrder.forEach(item => {
-            totalAmount += item.quantity * item.price;
-            productPurchases.push({ productId: item.product.id, quantity: item.quantity, unitPriceSatang: item.price, lineTotalSatang: item.quantity * item.price , name: item.product.name});
-            db.update(products).set({ amount: sql`${products.amount} - ${item.quantity}` }).where(eq(products.id, item.product.id)).run();
-            db.insert(saleItems).values({
-                saleId: saleId,
-                productId: item.product.id,
-                name: item.product.name,
-                quantity: item.quantity,
-                unitPriceSatang: item.price,
-                lineTotalSatang: item.quantity * item.price
-            }).run();
-        });
+                const saleId = result.saleId;
+                const createdAt = result.createdAt;
 
-        db.update(sales).set({ totalSatang: totalAmount }).where(eq(sales.id, saleId)).run();
-        res.status(201).json({
-            sale: {
-                id: saleId,
-                totalSatang: totalAmount,
-                items: productPurchases,
-                createdAt: createdAt
-            }
-        });
+                productsInOrder.forEach(item => {
+                    totalAmount += item.quantity * item.price;
+                    productPurchases.push({ productId: item.product.id, quantity: item.quantity, unitPriceSatang: item.price, lineTotalSatang: item.quantity * item.price , name: item.product.name});
+                    tx.update(products).set({ amount: sql`${products.amount} - ${item.quantity}` }).where(eq(products.id, item.product.id)).run();
+                    const insertResult = tx.insert(saleItems).values({
+                        saleId: saleId,
+                        productId: item.product.id,
+                        name: item.product.name,
+                        quantity: item.quantity,
+                        unitPriceSatang: item.price,
+                        lineTotalSatang: item.quantity * item.price
+                    }).run();
+                    if (!insertResult) {
+                        throw new Error('Failed to insert sale item');
+                    }
+                });
+
+                let updateSaleResult = tx.update(sales).set({ totalSatang: totalAmount }).where(eq(sales.id, saleId)).run();
+                if (!updateSaleResult) {
+                    throw new Error('Failed to update sale total');
+                }
+                return res.status(201).json({
+                    sale: {
+                        id: saleId,
+                        totalSatang: totalAmount,
+                        items: productPurchases,
+                        createdAt: createdAt
+                    }
+                });
+            });
+        }
+        catch (error) {
+            return res.status(500).json({
+                error: { code: 'INTERNAL_ERROR', message: 'An error occurred while processing the checkout' }
+            });
+        }
     }
 );
     return router;
