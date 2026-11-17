@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import { malformedJsonHandler } from "./middleware/malformed-json";
 import { getSaleRouter } from "./router/sale";
 import { getProductRouter } from "./router/product";
+import { getCheckoutRouter } from "./router/checkout";
 
 declare global {
   namespace Express {
@@ -63,5 +64,6 @@ export function createApp({ db }: { db: AppDatabase }) {
   app.use("/api/auth", getAuthRouter(db));
   app.use("/api/products", getProductRouter(db));
   app.use("/api/sales", getSaleRouter(db));
+  app.use("/api/checkout", getCheckoutRouter(db));
   return app;
 }
