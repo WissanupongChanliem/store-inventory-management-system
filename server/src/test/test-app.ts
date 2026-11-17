@@ -252,6 +252,107 @@ export function expectApiError(
   expect(serialized).not.toMatch(/\b(?:select|insert|update|delete)\b.+\bfrom\b/i);
 }
 
+function isDiagnosticRow(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function formatDiagnosticTable(
+  name: string,
+  columns: string[],
+  rows: unknown[],
+) {
+  const values = rows.length
+    ? rows.map((row) =>
+        columns.map((column) =>
+          String((isDiagnosticRow(row) ? row[column] : "") ?? "")
+            .replace(/\r?\n/g, "\\n")
+            .replace(/\|/g, "\\|"),
+        ),
+      )
+    : [["(no rows)", ...columns.slice(1).map(() => "")]];
+  const widths = columns.map((column, index) =>
+    Math.max(column.length, ...values.map((row) => row[index].length)),
+  );
+  const border = `+${widths.map((width) => "-".repeat(width + 2)).join("+")}+`;
+  const formatRow = (row: string[]) =>
+    `| ${row.map((cell, index) => cell.padEnd(widths[index])).join(" | ")} |`;
+
+  return [
+    name,
+    border,
+    formatRow(columns),
+    border,
+    ...values.map(formatRow),
+    border,
+  ].join("\n");
+}
+
+function formatDatabaseState(context: TestContext) {
+  const database = context.db.$client;
+
+  return [
+    formatDiagnosticTable(
+      "users",
+      ["id", "username", "createdAt"],
+      database
+        .prepare("SELECT id, username, created_at AS createdAt FROM users ORDER BY id")
+        .all(),
+    ),
+    formatDiagnosticTable(
+      "sessions",
+      ["userId", "username", "createdAt", "expiresAt"],
+      database
+        .prepare(
+          `SELECT user_id AS userId, username, created_at AS createdAt,
+                  expires_at AS expiresAt
+           FROM sessions ORDER BY user_id, created_at`,
+        )
+        .all(),
+    ),
+    formatDiagnosticTable(
+      "products",
+      ["id", "name", "amount", "priceSatang", "createdAt", "updatedAt"],
+      database
+        .prepare(
+          `SELECT id, name, amount, price_satang AS priceSatang,
+                  created_at AS createdAt, updated_at AS updatedAt
+           FROM products ORDER BY id`,
+        )
+        .all(),
+    ),
+    formatDiagnosticTable(
+      "sales",
+      ["id", "totalSatang", "createdAt"],
+      database
+        .prepare(
+          `SELECT id, total_satang AS totalSatang, created_at AS createdAt
+           FROM sales ORDER BY id`,
+        )
+        .all(),
+    ),
+    formatDiagnosticTable(
+      "saleItems",
+      [
+        "id",
+        "saleId",
+        "productId",
+        "name",
+        "unitPriceSatang",
+        "quantity",
+        "lineTotalSatang",
+      ],
+      database
+        .prepare(
+          `SELECT id, sale_id AS saleId, product_id AS productId, name,
+                  unit_price_satang AS unitPriceSatang, quantity,
+                  line_total_satang AS lineTotalSatang
+           FROM sale_items ORDER BY id`,
+        )
+        .all(),
+    ),
+  ].join("\n\n");
+}
+
 export function createApiErrorReporter(getContext: () => TestContext) {
   return (
     response: Response,
@@ -295,43 +396,7 @@ export function createApiErrorReporter(getContext: () => TestContext) {
           2,
         )}`,
         `Request input: ${JSON.stringify(requestInput ?? "(not provided)", null, 2)}`,
-        `Database state: ${JSON.stringify(
-          {
-            users: context.db.$client
-              .prepare("SELECT id, username, created_at AS createdAt FROM users ORDER BY id")
-              .all(),
-            sessions: context.db.$client
-              .prepare(
-                `SELECT user_id AS userId, username, created_at AS createdAt,
-                        expires_at AS expiresAt
-                 FROM sessions ORDER BY user_id, created_at`,
-              )
-              .all(),
-            products: context.db.$client
-              .prepare(
-                `SELECT id, name, amount, price_satang AS priceSatang,
-                        created_at AS createdAt, updated_at AS updatedAt
-                 FROM products ORDER BY id`,
-              )
-              .all(),
-            sales: context.db.$client
-              .prepare(
-                `SELECT id, total_satang AS totalSatang, created_at AS createdAt
-                 FROM sales ORDER BY id`,
-              )
-              .all(),
-            saleItems: context.db.$client
-              .prepare(
-                `SELECT id, sale_id AS saleId, product_id AS productId, name,
-                        unit_price_satang AS unitPriceSatang, quantity,
-                        line_total_satang AS lineTotalSatang
-                 FROM sale_items ORDER BY id`,
-              )
-              .all(),
-          },
-          null,
-          2,
-        )}`,
+        `Database state:\n${formatDatabaseState(context)}`,
       ].join("\n\n");
 
       if (error instanceof Error) {

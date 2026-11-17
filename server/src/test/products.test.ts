@@ -76,6 +76,8 @@ describe("Product endpoints", () => {
     expect(failureMessage).toContain("Authentication required");
     expect(failureMessage).toContain(requestInput.path);
     expect(failureMessage).toContain("Database state:");
+    expect(failureMessage).toContain("| username");
+    expect(failureMessage).toContain("| priceSatang");
     expect(hasStackTrace).toBe(false);
     expect(failureMessage).toContain(validProduct.name);
     expect(failureMessage).not.toContain("password_hash");
