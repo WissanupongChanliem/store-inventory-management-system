@@ -1,5 +1,5 @@
 // เปลี่ยนเป็น false เมื่อ backend พร้อมใช้งาน
-const USE_MOCK = true
+const USE_MOCK = false
 const USE_REAL_AUTH = true
 
 export class ApiError extends Error {

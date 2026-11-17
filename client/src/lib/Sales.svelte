@@ -48,6 +48,29 @@
             : undefined,
     );
 
+    const SORT_OPTIONS = [
+        { value: "newest", label: "เรียงจากใหม่ไปเก่า" },
+        { value: "oldest", label: "เรียงจากเก่าไปใหม่" },
+        { value: "highest", label: "เรียงตามยอดรวมมากไปน้อย" },
+        { value: "lowest", label: "เรียงตามยอดรวมน้อยไปมาก" },
+    ];
+    let sortBy = $state("newest");
+
+    // เรียงเฉพาะการแสดงผล (ไม่แก้ data.items) ถ้าค่าเท่ากันให้บิลใหม่กว่าอยู่ก่อน
+    const sortedItems = $derived.by(() => {
+        const newestFirst = (a, b) =>
+            Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id;
+        const compare = {
+            newest: newestFirst,
+            oldest: (a, b) => newestFirst(b, a),
+            highest: (a, b) =>
+                b.totalSatang - a.totalSatang || newestFirst(a, b),
+            lowest: (a, b) =>
+                a.totalSatang - b.totalSatang || newestFirst(a, b),
+        }[sortBy];
+        return [...(data?.items ?? [])].sort(compare);
+    });
+
     function baht(satang) {
         return (
             "฿" +
@@ -188,7 +211,32 @@
                 <div class="list">
                     <div class="list-head">
                         <h3>รายการขาย</h3>
-                        <span>เรียงจากใหม่ไปเก่า</span>
+                        <div class="sort">
+                            <select
+                                aria-label="เรียงรายการขาย"
+                                bind:value={sortBy}
+                            >
+                                {#each SORT_OPTIONS as option (option.value)}
+                                    <option value={option.value}
+                                        >{option.label}</option
+                                    >
+                                {/each}
+                            </select>
+                            <svg
+                                class="chevron"
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="m6 9 6 6 6-6" />
+                            </svg>
+                        </div>
                     </div>
 
                     <div class="table">
@@ -200,7 +248,7 @@
                             <span></span>
                         </div>
 
-                        {#each data.items as sale (sale.id)}
+                        {#each sortedItems as sale (sale.id)}
                             <button
                                 type="button"
                                 class="row item"
@@ -282,7 +330,6 @@
                             <span>ยอดรวม</span>
                             <strong>{baht(selected.totalSatang)}</strong>
                         </div>
-                        <p class="note">บันทึกชื่อและราคาสินค้า ณ เวลาที่ขาย</p>
                     {:else}
                         <p class="hint">ไม่มีบิลให้แสดงในวันนี้</p>
                     {/if}
@@ -470,7 +517,7 @@
 
     .list-head {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         margin-bottom: 12px;
     }
@@ -481,9 +528,33 @@
         color: #222222;
     }
 
-    .list-head span {
-        font-size: 0.85rem;
+    .sort {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .sort select {
+        appearance: none;
+        padding: 8px 36px 8px 14px;
+        font: inherit;
+        font-size: 0.9rem;
+        color: #333333;
+        background: #ffffff;
+        border: 1px solid #e1e5e2;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .sort select:focus-visible {
+        outline: 2px solid #17634e;
+    }
+
+    .sort .chevron {
+        position: absolute;
+        right: 12px;
         color: #6b7974;
+        pointer-events: none;
     }
 
     .table {
