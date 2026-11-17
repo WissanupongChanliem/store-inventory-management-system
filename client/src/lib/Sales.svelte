@@ -124,7 +124,6 @@
     <header class="head">
         <div>
             <h2>ยอดขายรายวัน</h2>
-            <p class="subtitle">ตรวจสอบยอดขายและรายละเอียดแต่ละบิลของวัน</p>
         </div>
 
         <div class="date-picker">

@@ -151,8 +151,7 @@
 
 <section class="account">
     <h2>บัญชีของฉัน</h2>
-    <p class="subtitle">จัดการชื่อผู้ใช้และรหัสผ่านสำหรับเข้าร้าน</p>
-
+    <br>
     <div class="grid">
         <form class="card" onsubmit={submit} novalidate>
             <h3>ข้อมูลการเข้าสู่ระบบ</h3>

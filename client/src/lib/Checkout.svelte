@@ -175,7 +175,7 @@
 <div class="checkout">
     <section class="left">
         <h2>ขายสินค้า</h2>
-        <p class="subtitle">เลือกสินค้า แล้วตรวจสอบตะกร้าก่อนยืนยันการขาย</p>
+        <br>
 
         <div class="search-box">
             <svg
