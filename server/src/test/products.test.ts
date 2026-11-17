@@ -427,15 +427,19 @@ describe("Product endpoints", () => {
   });
 
   it("PROD-L-3 numeric search includes matching IDs and names", async () => {
-    seedProduct(context, { name: "Bread", amount: 1, priceSatang: 1 });
-    seedProduct(context, { name: "Tea", amount: 1, priceSatang: 1 });
-    const nameMatchId = seedProduct(context, { name: "Type 2 Milk", amount: 1, priceSatang: 1 });
+    const idMatch = seedProduct(context, { name: "Bread", amount: 1, priceSatang: 1 });
+    const search = String(idMatch);
+    const nameMatchId = seedProduct(context, {
+      name: `Type ${search} Milk`,
+      amount: 1,
+      priceSatang: 1,
+    });
     const { agent } = await loginAsOwner(context.app);
-    const response = await agent.get("/api/products?search=2");
+    const response = await agent.get(`/api/products?search=${search}`);
 
     expect(response.status).toBe(200);
     expect(response.body.items.map((item: { id: number }) => item.id)).toEqual(
-      expect.arrayContaining([2, nameMatchId]),
+      expect.arrayContaining([idMatch, nameMatchId]),
     );
   });
 
