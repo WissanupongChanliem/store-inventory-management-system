@@ -2,6 +2,7 @@ import express from 'express';
 import { requireSession } from '../middleware/session';
 import { AppDatabase, lower, products } from '../db';
 import { asc, count, eq, or, sql, SQL } from 'drizzle-orm';
+import { getUnknownFields } from '../utils/request';
 
 function getProductRouter(db: AppDatabase) {
     const router = express.Router();
@@ -38,12 +39,14 @@ function getProductRouter(db: AppDatabase) {
                 }
             });
         }
-        if (Object.keys(req.body).length > 3) {
+
+        let unknownFields = getUnknownFields(['name', 'priceSatang', 'amount'], req.body);
+        if (unknownFields.length > 0) {
             return res.status(422).json({
                 error: {
                     code: 'VALIDATION_ERROR',
                     message: 'Unexpected fields in request body',
-                    details: Object.keys(req.body).filter(key => !['name', 'priceSatang', 'amount'].includes(key)).map(field => ({ field, message: `${field} is not allowed` }))
+                    details: unknownFields.map(field => ({ field, message: `${field} is not allowed` }))
                 }
             });
         }
@@ -138,6 +141,131 @@ function getProductRouter(db: AppDatabase) {
 
         return res.status(200).json({ items: productList, total, limit, offset });
     })
+
+    router.patch('/:id', requireSession(db), async (req, res) => {
+        const productId = Number(req.params.id);
+        const name = req.body.name;
+        const amount = req.body.amount;
+        const priceSatang = req.body.priceSatang;
+
+        if (!Number.isSafeInteger(productId) || productId < 1) {
+            return res.status(400).json({
+                error: {
+                    code: 'BAD_REQUEST',
+                    message: 'Invalid product ID',
+                }
+            });
+        }
+
+        if (name === undefined && amount === undefined && priceSatang === undefined) {
+            return res.status(422).json({
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'At least one of name, amount, or priceSatang must be provided for update',
+                    details: [
+                        { field: 'name', message: 'Product name is required for update' },
+                        { field: 'amount', message: 'Product amount is required for update' },
+                        { field: 'priceSatang', message: 'Product price is required for update' }
+                    ]
+                }
+            });
+        }
+        let unknownFields = getUnknownFields(['name', 'amount', 'priceSatang'], req.body);
+        
+        if (unknownFields.length > 0) {
+            return res.status(422).json({
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Unexpected fields in request body',
+                    details: unknownFields.map(field => ({ field, message: `${field} is not allowed` }))
+                }
+            });
+        }
+
+        let details: { field: string; message: string }[] = [];
+        if (name !== undefined && (typeof name !== 'string' || name.trim() === '' || name.trim().length > 100)) {
+            details.push({ field: 'name', message: 'Product name must be a non-empty string with length not exceeding 100 characters' });
+        }
+        if (amount !== undefined && (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 0 || amount > 1000000)) {
+            details.push({ field: 'amount', message: 'Product amount must be an integer between 0 and 1,000,000' });
+        }
+        if (priceSatang !== undefined && (typeof priceSatang !== 'number' || !Number.isInteger(priceSatang) || priceSatang < 0 || priceSatang > 100000000)) {
+            details.push({ field: 'priceSatang', message: 'Product price must be an integer between 0 and 100,000,000' });
+        }
+        if (details.length > 0) {
+            return res.status(422).json({
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Invalid field values',
+                    details: details
+                }
+            });
+        }
+
+        if (name !== undefined) {
+            const existingProduct = db.select().from(products).where(eq(lower(products.name), name.trim().toLowerCase())).get();
+            if (existingProduct && existingProduct.id !== productId) {
+                return res.status(409).json({
+                    error: {
+                        code: 'PRODUCT_NAME_EXISTS',
+                        message: 'Product with the same name already exists',
+                    }
+                });
+            }
+        }
+
+        const existingProduct = db.select().from(products).where(eq(products.id, productId)).get();
+        if (!existingProduct) {
+            return res.status(404).json({
+                error: {
+                    code: 'PRODUCT_NOT_FOUND',
+                    message: 'Product not found',
+                }
+            });
+        }
+
+        const updateData: Partial<typeof products.$inferInsert> = {};
+        if (name !== undefined) {
+            updateData.name = req.body.name.trim();
+        }
+        if (amount !== undefined) {
+            updateData.amount = req.body.amount;
+        }
+        if (priceSatang !== undefined) {
+            updateData.priceSatang = req.body.priceSatang;
+        }
+        updateData.updatedAt = new Date().toISOString();
+
+        const updatedProduct = db.update(products).set(updateData).where(eq(products.id, productId)).returning().get();
+        return res.status(200).json({ product: updatedProduct });
+    })
+
+    router.delete('/:id', requireSession(db), async (req, res) => {
+        const productId = Number(req.params.id);
+
+        if (!Number.isSafeInteger(productId) || productId < 1) {
+            return res.status(400).json({
+                error: {
+                    code: 'BAD_REQUEST',
+                    message: 'Invalid product ID',
+                }
+            });
+        }
+
+        const existingProduct = db.select().from(products).where(eq(products.id, productId)).get();
+        if (!existingProduct) {
+            return res.status(404).json({
+                error: {
+                    code: 'PRODUCT_NOT_FOUND',
+                    message: 'Product not found',
+                }
+            });
+        }
+
+        db.delete(products).where(eq(products.id, productId)).run();
+        return res.status(204).send();
+    })
+
 
     return router;
 }
