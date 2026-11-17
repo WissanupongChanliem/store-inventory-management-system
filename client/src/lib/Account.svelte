@@ -165,7 +165,7 @@
                 "currentPassword",
                 "รหัสผ่านปัจจุบัน",
                 "กรอกรหัสผ่านปัจจุบัน",
-                "current-password",
+                "new-password",
                 true,
             )}
 
@@ -173,7 +173,7 @@
             <input
                 id="acc-newUsername"
                 type="text"
-                autocomplete="username"
+                autocomplete="off"
                 aria-invalid={fieldErrors.newUsername ? "true" : undefined}
                 bind:value={form.newUsername}
             />
