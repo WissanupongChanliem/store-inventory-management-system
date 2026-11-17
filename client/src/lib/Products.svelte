@@ -202,17 +202,28 @@
         >
     </div>
 
-    <input
-        class="search"
-        type="search"
-        placeholder="ค้นหาด้วยชื่อสินค้าหรือ ID"
-        aria-label="ค้นหาสินค้า"
-        value={search}
-        oninput={(e) => {
-            search = e.currentTarget.value;
-            offset = 0;
-        }}
-    />
+        <div class="search-box">
+            <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+                type="search"
+                placeholder="ค้นหาด้วยชื่อสินค้าหรือ ID"
+                aria-label="ค้นหาสินค้า"
+                bind:value={search}
+            />
+        </div>
 
     {#if loadError}
         <p class="error" role="alert">{loadError}</p>
@@ -454,19 +465,35 @@
         color: #17634e;
     }
 
-    .search {
+    .search-box {
+        position: relative;
+        margin-bottom: 20px;
+    }
+
+    .search-box svg {
+        position: absolute;
+        top: 50%;
+        left: 16px;
+        transform: translateY(-50%);
+        color: #6b7974;
+        pointer-events: none;
+    }
+
+    .search-box input {
         width: 100%;
         box-sizing: border-box;
-        margin-bottom: 16px;
-        padding: 14px 16px;
+        padding: 14px 16px 14px 46px;
         font-size: 1.05rem;
         background: #ffffff;
         border: 1px solid #c9cfcc;
         border-radius: 10px;
     }
 
-    .search:focus,
-    .modal input:focus {
+    .search-box input::placeholder {
+        color: #6b7974;
+    }
+
+    .search-box input:focus {
         outline: 2px solid #17634e;
         border-color: #17634e;
     }
