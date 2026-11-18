@@ -47,7 +47,7 @@
 </script>
 
 <aside class="sidebar">
-    <div class="brand">ระบบจัดการสินค้า</div>
+    <div class="brand">Simple Stock</div>
 
     <nav aria-label="เมนูหลัก">
         <ul>
